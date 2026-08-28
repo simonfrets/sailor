@@ -412,8 +412,8 @@ when the project already has one — `chain` runs the existing hook and then the
 sailor gate, `abort` stops. There is no `replace`.
 
 `sailor init` installs these files and `sailor doctor` validates the
-installed copies. Hook dispatch is the next milestone, and enforcing the tool
-policy at run time belongs to the provider adapters.
+installed copies. What the runtime does with the policy is described under
+[Tool policy enforcement](#tool-policy-enforcement).
 
 ## Phase gates
 
@@ -602,8 +602,75 @@ Stopping a run and resuming it - in another process, on another machine, or
 from a fresh clone - therefore needs only `tasks.yaml`: it names the stage the
 task stands at, and the stages already behind it are not run again.
 
+## Tool policy enforcement
+
+Design decision 6 says an agent's tool permissions are enforced by the runtime
+and not merely written into its prompt. The definitions and contexts have
+carried `tools`, `writeScopes` and `projectScripts` since Milestone C; this is
+what reads them.
+
+An action is one of four things - a `read`, a `search`, a `write` of one path,
+or an `execute` of one argument vector - and `evaluateToolAction` decides each
+against a `ToolPolicy` built from the agent's context by `toolPolicyFromContext`.
+The decision is a value, allowed or denied, and a denial names its cause from a
+closed list rather than in prose, so a record of a run can be read by kind.
+
+A write is held to four things, in order:
+
+1. It has to be inside the project. `../x`, `/etc/passwd` and a path with a
+   backslash in it are outside, whatever the scopes say: `**` grants the
+   project, not the machine.
+2. The agent's own context directory is scratch. Every agent may write there,
+   whether or not it may edit, so a reviewer with `edit: false` can still
+   leave its findings - except for `context.json`, which is what the agent was
+   handed and is never rewritten by the agent holding it.
+3. The rest of `.sailor/` belongs to the sailor. Rules, definitions,
+   configuration, hooks and `tasks.yaml` are what govern the agents, and a
+   scope that could reach them would let an agent widen its own scope for the
+   next run. No scope reaches them.
+4. Only then do `tools.edit` and the write scopes apply. A scope's wildcards
+   are `*`, `**` and `?` - the schema admits nothing else - and the matcher
+   implements exactly those. Dotfiles match: a scope names a subtree.
+
+An execute is a project script or it is refused. The definition grants scripts
+by their semantic name, and a command is recognised as one in the form the
+sailor would build for it - `npm run test`, `pnpm run lint`, arguments after
+the name permitted - plus the bare `test` each manager documents (`npm test`,
+`npm t`, `pnpm test`, `yarn test`; not `bun test`, which is Bun's own runner).
+`npx jest` runs the same tests and is still refused: it is not a script the
+definition named, and there is no arbitrary command an agent is permitted.
+
+Two things enforce this, because a CLI-driven agent is a separate process and
+the sailor cannot see inside it:
+
+- A provider that can ask before the agent acts asks `evaluateToolAction`
+  through its adapter, and reports the action with the verdict it received.
+  How strongly `execute` is enforced is exactly as strong as that: a command
+  the provider does not report before running it cannot be refused.
+- Whether or not it can, the working tree is compared afterwards.
+  `snapshotWorkingTree` stages everything git would track into a **private
+  index** named through `GIT_INDEX_FILE` and writes it as a tree object, once
+  before the run and once after; `auditWorkingTree` has git list the paths
+  that differ and puts every one of them to the write policy. A change outside
+  the scopes is a violation whatever the provider reported, and a deletion is
+  a change. The repository's own index is never read or written.
+
+The audit is a report, not an exception: a violation is a finding about the
+run, and refusing the handoff is the runtime's decision. Git failing is an
+exception, `working-tree-audit-failed`, exit `5` - the sailor cannot say
+whether the agent stayed in scope, so accepting the work would be the unsafe
+act. A path list git could not print in full is refused for the same reason.
+
+Two limits are worth stating. The audit sees what git sees, so a write to an
+ignored path is outside it - which is what makes `.sailor/state/` scratch -
+and a write through a symlink that leaves the project is a write git records
+against the link. And it is after the fact: it can refuse the handoff and
+record why, but the file has been written, and undoing it is not something the
+sailor does on its own.
+
 ## Planned modules
 
 - Typed Codex and Claude CLI adapter contract
-- Runtime enforcement of the shipped agent tool policies
+- A runtime that invokes the adapters, audits each run against its tool policy
+  and drives a task through its agents
 - Specifier, coder, cleaner, architect, hardener, and QA agents

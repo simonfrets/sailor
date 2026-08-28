@@ -71,4 +71,13 @@ describe("CLI exit codes", () => {
       CLI_EXIT_CODES.invalidConfig
     );
   });
+
+  it("refuses a handoff whose working tree could not be audited", () => {
+    // Git failing to hash or compare the tree leaves the sailor unable to say
+    // whether the agent stayed in scope. Accepting the work anyway would be
+    // the unsafe action, so the handoff is what gets refused.
+    expect(exitCodeForSailorError("working-tree-audit-failed")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
 });

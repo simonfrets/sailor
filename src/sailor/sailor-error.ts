@@ -16,6 +16,7 @@ export const SAILOR_ERROR_KINDS = [
   "unknown-task",
   "unsafe-hook-chain",
   "unsafe-overwrite",
+  "working-tree-audit-failed",
 ] as const;
 
 export type SailorErrorKind = (typeof SAILOR_ERROR_KINDS)[number];

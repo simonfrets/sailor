@@ -35,6 +35,7 @@ export const exitCodeForSailorError = (kind: SailorErrorKind): number => {
     case "task-lock-failed":
     case "unsafe-hook-chain":
     case "unsafe-overwrite":
+    case "working-tree-audit-failed":
       return CLI_EXIT_CODES.refused;
   }
 };

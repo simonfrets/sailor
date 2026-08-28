@@ -191,6 +191,41 @@ export type {
   TimedOutCommandResult,
 } from "./processes/command-runner.js";
 
+export {
+  globMatches,
+  matchingWriteScope,
+  toProjectRelativePath,
+} from "./enforcement/write-scope.js";
+export {
+  TOOL_ACTION_KINDS,
+  TOOL_DENIALS,
+  evaluateToolAction,
+  matchProjectScript,
+  toolActionSchema,
+  toolDecisionSchema,
+  toolDenialSchema,
+  toolPolicyFromContext,
+} from "./enforcement/tool-policy.js";
+export type {
+  DeniedToolDecision,
+  ToolAction,
+  ToolDecision,
+  ToolDenial,
+  ToolPolicy,
+} from "./enforcement/tool-policy.js";
+export {
+  WORKING_TREE_AUDIT_TIMEOUT_MS,
+  auditWorkingTree,
+  snapshotWorkingTree,
+} from "./enforcement/working-tree-audit.js";
+export type {
+  AuditWorkingTreeOptions,
+  SnapshotWorkingTreeOptions,
+  WorkingTreeAudit,
+  WorkingTreeSnapshot,
+  WorkingTreeViolation,
+} from "./enforcement/working-tree-audit.js";
+
 export { compileAgentPolicy } from "./prompts/compile-agent-policy.js";
 export type { CompileAgentPolicyInput } from "./prompts/compile-agent-policy.js";
 
