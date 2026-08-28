@@ -29,6 +29,7 @@ export const exitCodeForSailorError = (kind: SailorErrorKind): number => {
       return CLI_EXIT_CODES.invalidConfig;
     case "dependency-install-failed":
     case "git-config-failed":
+    case "invalid-invocation":
     case "invalid-transition":
     case "not-a-git-repository":
     case "stale-task-revision":

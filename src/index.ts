@@ -199,6 +199,7 @@ export {
 export {
   TOOL_ACTION_KINDS,
   TOOL_DENIALS,
+  commandSpecSchema,
   evaluateToolAction,
   matchProjectScript,
   toolActionSchema,
@@ -225,6 +226,38 @@ export type {
   WorkingTreeSnapshot,
   WorkingTreeViolation,
 } from "./enforcement/working-tree-audit.js";
+
+export {
+  AGENT_EVENT_KINDS,
+  AGENT_STATUSES,
+  OUTPUT_STREAMS,
+  agentEventSchema,
+  agentStatusOfCommandResult,
+  agentStatusSchema,
+  finishedEventOf,
+} from "./providers/agent-event.js";
+export type {
+  AgentEvent,
+  AgentEventKind,
+  AgentStatus,
+  FinishedEvent,
+  OutputStream,
+} from "./providers/agent-event.js";
+export {
+  PROVIDER_IDS,
+  ProviderProtocolError,
+  buildAgentInvocation,
+  providerIdSchema,
+  recordAgentRun,
+} from "./providers/provider-adapter.js";
+export type {
+  AgentInvocation,
+  AgentRunRecord,
+  BuildAgentInvocationInput,
+  ProviderAdapter,
+  ProviderId,
+  RecordAgentRunOptions,
+} from "./providers/provider-adapter.js";
 
 export { compileAgentPolicy } from "./prompts/compile-agent-policy.js";
 export type { CompileAgentPolicyInput } from "./prompts/compile-agent-policy.js";

@@ -34,6 +34,7 @@ describe("SailorError", () => {
       "dependency-install-failed",
       "git-config-failed",
       "invalid-config",
+      "invalid-invocation",
       "invalid-transition",
       "missing-context",
       "not-a-git-repository",

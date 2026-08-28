@@ -33,7 +33,7 @@ export const TOOL_ACTION_KINDS = [
 ] as const;
 
 /** Matches `CommandSpec`, readonly arguments included, so one flows into the other. */
-const commandSpecSchema = z.strictObject({
+export const commandSpecSchema = z.strictObject({
   executable: z.string().min(1),
   args: z.array(z.string()).readonly(),
 });

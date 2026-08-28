@@ -24,9 +24,12 @@ implemented: a transition is recorded into `.sailor/tasks.yaml` through
 `updateTaskFile`, which holds an exclusive lock across the whole
 read-change-write, and a context is written per run and per agent. Pairing the
 two - writing the next agent's context and recording the transition that points
-at it - is the runtime's job, and there is no runtime: the Codex and Claude
-adapters are **not** implemented yet, so nothing invokes an agent and the
-workflow is driven through the library.
+at it - is the runtime's job, and there is no runtime.
+
+The contract a provider adapter implements exists, and an agent's tool policy
+is enforced around an invocation rather than described in its prompt. The
+Codex and Claude adapters themselves are **not** implemented, so nothing
+invokes an agent yet and the workflow is driven through the library.
 
 ## Requirements
 
@@ -602,6 +605,54 @@ Stopping a run and resuming it - in another process, on another machine, or
 from a fresh clone - therefore needs only `tasks.yaml`: it names the stage the
 task stands at, and the stages already behind it are not run again.
 
+## Provider adapters
+
+An agent is invoked through a provider's command line, and the contract every
+provider implements is one method:
+
+```ts
+interface ProviderAdapter {
+  readonly provider: "claude" | "codex";
+  invoke(invocation: AgentInvocation): AsyncIterable<AgentEvent>;
+}
+```
+
+`AgentInvocation` is what the adapter is handed: the absolute project root,
+the project-relative context path, a snapshot of the task, the attempt and what
+the previous agent left behind, the compiled policy, the logical model profile,
+the tool policy, a timeout and an abort signal. It is built by
+`buildAgentInvocation` from the task and the context the handoff wrote, and
+from nothing else: the capabilities, scopes and scripts are the context's, so
+the adapter and the working-tree audit read one policy. What comes back is
+frozen and copied.
+
+The builder refuses a context that does not belong to the task - written for
+another task, run, revision, state or agent - and a task whose recorded
+`contextPath` is not the path its own `runId` and `agentId` name. The second
+check is the one a retry needs. `transitionTask` mints a new run for a retry,
+and a driver that wrote the context under the old run leaves a task whose run
+and context disagree; nothing validated that pair before, and an invocation
+cannot now be built from it. Every disagreement is listed at once.
+
+An adapter reports `AgentEvent`s: `started` once, any number of `output`
+chunks and `tool-action`s - each action with the verdict `evaluateToolAction`
+gave it - and `finished` once, last, carrying the run's status: `completed`,
+`failed`, `timed-out` or `aborted`. `recordAgentRun` drives an adapter,
+validates every event against the schema, holds them to that order, and
+returns the events with the closing one; an adapter that breaks the protocol
+is reported as a `ProviderProtocolError`, which is a defect rather than a
+condition an exit code should describe. `finishedEventOf` turns a
+`CommandResult` into the closing event, so an adapter built on
+`nodeCommandRunner` gets its timeouts, output caps and environment allowlist
+from there and its final status from here.
+
+No adapter exists yet, and that is deliberate. An adapter is written against
+the installed CLI's `--help`, because provider flags are version-sensitive and
+a guessed flag would ship behind a passing test suite: no test may make a live
+call, so no test could catch it. `claude` is installed on the machine this was
+built on and `codex` is not, so the Claude adapter is the next step and the
+Codex adapter waits for its CLI. The contract carries no provider flag.
+
 ## Tool policy enforcement
 
 Design decision 6 says an agent's tool permissions are enforced by the runtime
@@ -670,7 +721,8 @@ sailor does on its own.
 
 ## Planned modules
 
-- Typed Codex and Claude CLI adapter contract
+- Claude and Codex adapters behind the contract, each written against its
+  installed CLI
 - A runtime that invokes the adapters, audits each run against its tool policy
   and drives a task through its agents
 - Specifier, coder, cleaner, architect, hardener, and QA agents

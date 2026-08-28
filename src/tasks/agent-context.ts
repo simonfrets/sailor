@@ -7,6 +7,7 @@ import type { AgentDefinition } from "../agents/agent-definition.js";
 import { z } from "zod";
 
 import { writeFileAtomic } from "../sailor/atomic-write.js";
+import { deepFreeze } from "../sailor/deep-freeze.js";
 import { SailorError } from "../sailor/sailor-error.js";
 import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
 import {
@@ -213,18 +214,6 @@ export const writeAgentContext = (
   );
 
   return agentContextDirectory(context.runId, context.agentId);
-};
-
-const deepFreeze = <T>(value: T): T => {
-  if (typeof value !== "object" || value === null) {
-    return value;
-  }
-
-  for (const entry of Object.values(value)) {
-    deepFreeze(entry);
-  }
-
-  return Object.freeze(value);
 };
 
 /**

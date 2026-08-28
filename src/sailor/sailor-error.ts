@@ -7,6 +7,7 @@ export const SAILOR_ERROR_KINDS = [
   "dependency-install-failed",
   "git-config-failed",
   "invalid-config",
+  "invalid-invocation",
   "invalid-transition",
   "missing-context",
   "not-a-git-repository",

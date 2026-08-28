@@ -72,6 +72,15 @@ describe("CLI exit codes", () => {
     );
   });
 
+  it("refuses to hand a task to an agent under a context that is not its own", () => {
+    // Running the stage anyway would run it under whatever policy the
+    // mismatched context carries, which is the outcome the check exists to
+    // prevent, so the invocation is refused rather than repaired.
+    expect(exitCodeForSailorError("invalid-invocation")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
+
   it("refuses a handoff whose working tree could not be audited", () => {
     // Git failing to hash or compare the tree leaves the sailor unable to say
     // whether the agent stayed in scope. Accepting the work anyway would be
