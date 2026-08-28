@@ -131,14 +131,14 @@ writing it from memory is the one thing this milestone must not do.
 Milestone C was three commits against a written specification. D is not that
 shape. Suggested boundaries, each independently reviewable:
 
-| Step | Subject                                      | Depends on                |
-| ---- | -------------------------------------------- | ------------------------- |
-| D1   | `Define the provider adapter contract`       | nothing                   |
-| D2   | `Enforce an agent's tool policy at run time` | nothing                   |
-| D3   | `Invoke an agent through the Claude CLI`     | D1, `claude` installed    |
-| D4   | `Invoke an agent through the Codex CLI`      | D1, **`codex` installed** |
-| D5   | `Validate provider and model configuration`  | D3 or D4                  |
-| D6   | `Drive a task through its agents`            | D1–D3, D5                 |
+| Step | Subject                                      | Depends on                | State |
+| ---- | -------------------------------------------- | ------------------------- | ----- |
+| D1   | `Define the provider adapter contract`       | nothing                   | done  |
+| D2   | `Enforce an agent's tool policy at run time` | nothing                   | done  |
+| D3   | `Invoke an agent through the Claude CLI`     | D1, `claude` installed    |       |
+| D4   | `Invoke an agent through the Codex CLI`      | D1, **`codex` installed** |       |
+| D5   | `Validate provider and model configuration`  | D3 or D4                  |       |
+| D6   | `Drive a task through its agents`            | D1-D3, D5                 |       |
 
 **D1 and D2 are the natural first session.** Neither needs a provider CLI, both
 are self-contained, and D2 is where design decision 6 stops being aspirational.
@@ -169,6 +169,127 @@ agent — a write outside a scope, an execute for an agent with
 `execute: false`, a project script not in `projectScripts` — and make it
 mechanical. `src/sailor/project-path.ts` already holds the glob and path
 schemas this needs.
+
+## What D1 and D2 added
+
+Three commits on `codex/milestone-d`, on top of the handoff commit:
+`f2e5f07` (D2), `7d49731` (D1) and `a685dc6`, a fix the end-to-end
+demonstration forced. D2 landed before D1 because D1's `tool-action` event
+carries D2's action and decision; the handoff lists both as depending on
+nothing, and that is the only dependency between them.
+
+`npm run check`, `npm run build`, `npm run test:coverage` and
+`npm pack --dry-run` pass: 795 tests across 69 suites at 99.4% statements. The
+suite was run under the simulated hook environment before every commit.
+
+| Module                                  | Public surface                                                                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/enforcement/write-scope.ts`        | `globMatches`, `matchingWriteScope`, `toProjectRelativePath`                                                                                                                                |
+| `src/enforcement/tool-policy.ts`        | `TOOL_ACTION_KINDS`, `TOOL_DENIALS`, `toolActionSchema`, `toolDecisionSchema`, `toolDenialSchema`, `commandSpecSchema`, `evaluateToolAction`, `matchProjectScript`, `toolPolicyFromContext` |
+| `src/enforcement/working-tree-audit.ts` | `snapshotWorkingTree`, `auditWorkingTree`, `WORKING_TREE_AUDIT_TIMEOUT_MS`                                                                                                                  |
+| `src/providers/agent-event.ts`          | `AGENT_EVENT_KINDS`, `AGENT_STATUSES`, `OUTPUT_STREAMS`, `agentEventSchema`, `agentStatusSchema`, `agentStatusOfCommandResult`, `finishedEventOf`                                           |
+| `src/providers/provider-adapter.ts`     | `PROVIDER_IDS`, `providerIdSchema`, `buildAgentInvocation`, `recordAgentRun`, `ProviderProtocolError`, the `ProviderAdapter` and `AgentInvocation` types                                    |
+| `src/sailor/deep-freeze.ts`             | `deepFreeze`, moved out of `agent-context.ts`; not re-exported                                                                                                                              |
+
+`SAILOR_ERROR_KINDS` gained `invalid-invocation` and
+`working-tree-audit-failed`, both exit 5. `PUBLIC_API` is now 220 entries.
+`README.md` has two new sections, "Provider adapters" and "Tool policy
+enforcement", and they are the reference; what follows is what they do not
+say.
+
+### Decisions taken where the design was silent
+
+1. **Enforcement is two layers, because the agent is another process.**
+   `evaluateToolAction` is a pure decision an adapter asks before the agent
+   acts, for a provider that can be asked. `snapshotWorkingTree` and
+   `auditWorkingTree` compare the tree afterwards through a private git index
+   and put every changed path to the same write policy, for every provider.
+   The audit is a report; git failing is an exception. How strongly `execute`
+   is enforced is exactly as strong as the provider's reporting of commands
+   before it runs them, and nothing post hoc can improve on that.
+2. **The agent's own context directory is scratch, and the rest of
+   `.sailor/` is untouchable.** The shipped `architect.yaml` says findings go
+   to the run context, with `edit: false` and no scope; a policy under which it
+   could not write there would contradict the definition it enforces.
+   `context.json` is the exception. Everything else under `.sailor/` is
+   refused whatever the scopes say, because a scope reaching
+   `.sailor/agents/` would let an agent widen its own scope for the next run.
+3. **An execute is a project script or nothing.** A command is recognised in
+   the form `buildPackageManagerCommand` builds, so the gate runner and the
+   policy share one definition of running a script, plus the bare `test` each
+   manager documents (`npm test`, `npm t`, `npm tst`, `pnpm test`, `pnpm t`,
+   `yarn test`; not `bun test`). `npx jest` is refused. Loosening this is a
+   policy change, not a bug.
+4. **The adapter reports the verdict, the runtime does not decide it.** An
+   `AsyncIterable` is one-way, so a provider that can block before an action
+   has to be given the policy and ask; the `tool-action` event records what it
+   was told. `AgentInvocation` therefore carries a `ToolPolicy`, and D1
+   depends on D2.
+5. **A context is accepted from either end of the handoff.** The handoff
+   writes the context from the snapshot the transition was decided against,
+   one revision behind the task; a driver recording first would build it from
+   the one produced. `buildAgentInvocation` accepts both, paired, and refuses
+   an earlier attempt's context at the same path. See `a685dc6` for how this
+   was found.
+6. **`ProviderProtocolError` is not a `SailorError`.** An adapter that emits
+   `finished` twice is a defect in the adapter, not an operational condition an
+   exit code should describe to an operator.
+
+### Open findings, after D1 and D2
+
+Finding 1 is half closed. `buildAgentInvocation` refuses a task whose
+`contextPath` is not what its `runId` and `agentId` name, so a retry whose
+context landed under the old run cannot be invoked. `tasks.yaml` can still
+carry the pair; a `taskSchema` refinement would close it and touches C1, so it
+was left for the session that writes the driver. Findings 2 to 7 are untouched.
+Criterion 8 now has an invocation per agent and still nothing that invokes it;
+criterion 10 is unchanged.
+
+### Verified against a throwaway repository
+
+Criterion 8, with the built package driving the six shipped agents through a
+fresh git repository holding the shipped rules and definitions: six contexts,
+six `AgentInvocation`s, six distinct tool policies, every invocation frozen,
+each policy heading naming its agent. Then, at `implementing`: a task recorded
+under another run's path and an earlier attempt's context at the right path
+were both refused as `invalid-invocation`. Then the coder's run was audited:
+`src/login.ts` and `tests/login.test.ts` written in scope, `docs/readme.md`
+deleted and `docs/other.md` added outside it, `.sailor/agents/coder.yaml`
+rewritten, scratch written under the context directory. The audit listed the
+four project changes and the definition, flagged the three that were not the
+coder's to make - two `outside-write-scope`, one `sailor-owned` - ignored the
+scratch, and left the repository's own index empty. Ten decisions an adapter
+would ask for came back as the README describes them.
+
+Criteria 1 to 3 were re-checked with a real `sailor init` from the built
+CLI against a throwaway repository with a pre-existing `.git/hooks/pre-commit`:
+the `v0.1.0` tarball resolved, hooks chained with the project's first,
+`package.json` byte-identical, footprint `.sailor/` plus `core.hooksPath`.
+`doctor` named the `typecheck` script the fixture lacked, and a real commit
+ran the project hook, then the gate, and was blocked by that rule at exit 4,
+as documented. Criteria 4 to 7 and 9 are covered by the integration suites
+that already existed, all green.
+
+### What D3 starts from
+
+- Run `claude --help` and read it before writing a flag. `claude` is at
+  `~/.local/bin/claude`; `codex` is still not installed, so D4 stays open.
+- An adapter implements `ProviderAdapter`, yields `started`, `output`,
+  `tool-action` and `finished`, and is driven by `recordAgentRun`. Build the
+  closing event with `finishedEventOf` from a `CommandResult`, so
+  `nodeCommandRunner` keeps the timeout, output cap and environment allowlist.
+  `nodeCommandRunner` has no abort support; the invocation's `signal` will
+  need it or the adapter reports `aborted` only for a run that had not started.
+- Map `invocation.toolPolicy` to whatever permission mechanism the CLI's
+  `--help` actually documents, and ask `evaluateToolAction` wherever the CLI
+  lets an adapter answer before an action. Relativise reported paths with
+  `toProjectRelativePath` first.
+- Snapshot before and audit after, with `indexFile` somewhere under
+  `.sailor/state/` that is not the agent's own context directory - the agent
+  may write there. `.sailor/state/audit/<run>-<agent>.index` is what the
+  demonstration used.
+- The `.sailor/config/models.yaml` and `providers.yaml` the design names do
+  not exist; `MODEL_PROFILES` is the logical side, and the provider side is D5.
 
 ## Traps
 
