@@ -17,7 +17,11 @@ import { buildAgentContext } from "../../../src/tasks/agent-context.js";
 import type { AgentContext } from "../../../src/tasks/agent-context.js";
 import type { Task } from "../../../src/tasks/task-schema.js";
 import { captureError, captureRejection } from "../../helpers/expect-error.js";
-import { RULE_SET_SHA256, buildTask } from "../../helpers/tasks.js";
+import {
+  RULE_SET_SHA256,
+  buildTask,
+  buildTransition,
+} from "../../helpers/tasks.js";
 
 const AT = "2026-08-28T12:00:00.000Z";
 const PROJECT_ROOT = "/tmp/project";
@@ -33,6 +37,9 @@ const coder: AgentDefinition = {
   projectScripts: ["lint", "test"],
 };
 
+const CONTEXT_PATH = ".sailor/state/runs/run-1/agents/coder";
+
+/** A task the coder was just handed: entered `implementing` at revision 5, decided at 4. */
 const implementing = (overrides: Partial<Task> = {}): Task =>
   buildTask({
     state: "implementing",
@@ -41,7 +48,18 @@ const implementing = (overrides: Partial<Task> = {}): Task =>
     runId: "run-1",
     approvedAt: "2026-08-28T11:00:00.000Z",
     approvedBy: "a-reviewer",
-    contextPath: ".sailor/state/runs/run-1/agents/coder",
+    contextPath: CONTEXT_PATH,
+    history: [
+      buildTransition({
+        revision: 5,
+        expectedRevision: 4,
+        from: "awaiting_approval",
+        to: "implementing",
+        fromAgent: null,
+        toAgent: "coder",
+        contextPath: CONTEXT_PATH,
+      }),
+    ],
     ...overrides,
   });
 
@@ -173,13 +191,25 @@ describe("buildAgentInvocation", () => {
     );
   });
 
-  it("refuses a context that was written for another task, run, revision, state or agent", () => {
+  it("accepts the context a handoff actually writes: built before the transition, from the snapshot it was decided against", () => {
+    const task = implementing();
+    // What `writeAgentContext` was given: the task as it stood before the
+    // move, at revision 4 in `awaiting_approval`, one revision behind.
+    const context = contextFor(task, {
+      taskRevision: 4,
+      state: "awaiting_approval",
+    });
+
+    expect(buildAgentInvocation(input({ task, context })).task.revision).toBe(
+      5
+    );
+  });
+
+  it("refuses a context that was written for another task, run or agent", () => {
     const task = implementing();
     const cases: readonly [Partial<AgentContext>, string][] = [
       [{ taskId: "other-task" }, "task `other-task`, not `add-login`"],
       [{ runId: "run-0" }, "run `run-0`, not `run-1`"],
-      [{ taskRevision: 4 }, "revision 4, not 5"],
-      [{ state: "cleaning" }, "`cleaning`, not `implementing`"],
       [{ agentId: "cleaner" }, "agent `cleaner`, not `coder`"],
     ];
 
@@ -189,6 +219,47 @@ describe("buildAgentInvocation", () => {
       expect(error.kind).toBe("invalid-invocation");
       expect(error.details.join("\n")).toContain(expected);
     }
+  });
+
+  it("refuses a context built from any revision but the two this handoff spans", () => {
+    const task = implementing();
+    const cases: readonly Partial<AgentContext>[] = [
+      // An earlier attempt, still at the same path.
+      { taskRevision: 3, state: "implementing" },
+      // The right revision paired with the wrong snapshot, either way round.
+      { taskRevision: 4, state: "implementing" },
+      { taskRevision: 5, state: "awaiting_approval" },
+      { taskRevision: 5, state: "cleaning" },
+    ];
+
+    for (const overrides of cases) {
+      const error = refused({ task, context: contextFor(task, overrides) });
+
+      expect(error.kind).toBe("invalid-invocation");
+      expect(error.details.join("\n")).toContain(
+        `built from revision ${String(overrides.taskRevision)} in \`${String(overrides.state)}\`; this handoff was decided at revision 4 in \`awaiting_approval\` and produced revision 5 in \`implementing\``
+      );
+    }
+  });
+
+  it("holds a task whose history is missing to the snapshot it produced", () => {
+    const task = implementing({ history: [] });
+
+    expect(
+      buildAgentInvocation(input({ task, context: contextFor(task) })).attempt
+    ).toBe(2);
+
+    const error = refused({
+      task,
+      context: contextFor(task, {
+        taskRevision: 4,
+        state: "awaiting_approval",
+      }),
+    });
+
+    expect(error.details.join("\n")).toContain(
+      "built from revision 4 in `awaiting_approval`; this handoff produced revision 5 in `implementing`"
+    );
   });
 
   it("refuses a task whose recorded context path is not the one its run and agent name", () => {

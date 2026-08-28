@@ -73,9 +73,10 @@ const code = (text: string): string => `\`${text}\``;
  * on changing does not change under the agent.
  *
  * Refused, with every disagreement listed at once: a context written for
- * another task, run, revision, state or agent, and a task whose recorded
- * context path is not the one its own run and agent name. The second is what
- * a retry needs. `transitionTask` mints a new run for a retry, and a driver
+ * another task, run or agent, one built from a revision that is neither the
+ * one this handoff was decided at nor the one it produced, and a task whose
+ * recorded context path is not the one its own run and agent name. The last
+ * is what a retry needs. `transitionTask` mints a new run for a retry, and a driver
  * that wrote the context under the old run leaves a task whose `runId` and
  * `contextPath` disagree, with nothing until now to say so. Running the stage
  * anyway would run it under whichever policy that other context carries.
@@ -108,15 +109,27 @@ export const buildAgentInvocation = (
     );
   }
 
-  if (context.taskRevision !== task.revision) {
-    issues.push(
-      `the context was written at revision ${String(context.taskRevision)}, not ${String(task.revision)}`
-    );
-  }
+  // A handoff writes the context first and then records the transition that
+  // names it, so the context is built from the snapshot the transition was
+  // decided against, one revision behind the task it is read beside. A driver
+  // that records first and writes second builds it from the snapshot the
+  // transition produced instead. Both are this handoff; a context built from
+  // any other revision is an earlier attempt still sitting at the same path.
+  const entered = task.history.at(-1);
+  const builtAfter =
+    context.taskRevision === task.revision && context.state === task.state;
+  const builtBefore =
+    entered?.to === task.state &&
+    context.taskRevision === entered.expectedRevision &&
+    context.state === entered.from;
 
-  if (context.state !== task.state) {
+  if (!builtAfter && !builtBefore) {
     issues.push(
-      `the context was written for ${code(context.state)}, not ${code(task.state)}`
+      `the context was built from revision ${String(context.taskRevision)} in ${code(context.state)}; this handoff ${
+        entered === undefined
+          ? ""
+          : `was decided at revision ${String(entered.expectedRevision)} in ${code(entered.from)} and `
+      }produced revision ${String(task.revision)} in ${code(task.state)}`
     );
   }
 

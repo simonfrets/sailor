@@ -626,10 +626,13 @@ from nothing else: the capabilities, scopes and scripts are the context's, so
 the adapter and the working-tree audit read one policy. What comes back is
 frozen and copied.
 
-The builder refuses a context that does not belong to the task - written for
-another task, run, revision, state or agent - and a task whose recorded
-`contextPath` is not the path its own `runId` and `agentId` name. The second
-check is the one a retry needs. `transitionTask` mints a new run for a retry,
+The builder refuses a context that does not belong to the task: one written
+for another task, run or agent, one built from a revision that is neither the
+one this handoff was decided at nor the one it produced - a handoff writes the
+context from the snapshot before the transition, so an earlier attempt left at
+the same path is what that rules out - and a task whose recorded `contextPath`
+is not the path its own `runId` and `agentId` name. The last check is the one
+a retry needs. `transitionTask` mints a new run for a retry,
 and a driver that wrote the context under the old run leaves a task whose run
 and context disagree; nothing validated that pair before, and an invocation
 cannot now be built from it. Every disagreement is listed at once.
