@@ -605,6 +605,50 @@ Stopping a run and resuming it - in another process, on another machine, or
 from a fresh clone - therefore needs only `tasks.yaml`: it names the stage the
 task stands at, and the stages already behind it are not run again.
 
+### Completing a task
+
+`qa -> completed` is guarded; acceptance criterion 10 stops being aspirational
+here. Approval already pins what it accepted - at least one Gherkin feature
+file and one executable QA procedure, each recorded on the task as a SHA-256
+digest - and the transition into `completed` now demands `completion`
+evidence with four parts, refused as `incomplete-evidence` (exit `5`) when
+any is missing or inconsistent:
+
+1. **Final gate reports** for both `pre-handoff` and `qa`, run over every
+   check in the rule set rather than QA's slice of it, neither blocked.
+2. **The accepted procedure's results.** The procedure is YAML: steps of the
+   same two runners a rule check has, each declaring which scenarios it
+   `covers`. Every step must have passed.
+3. **Accepted Gherkin evidence.** The evidence's feature digests must equal
+   the approved ones - QA may write `features/**`, so an edited feature file
+   blocks completion by content - and at approval every scenario must be
+   covered by at least one step, so scenario evidence is derived entirely
+   from step results the sailor produced itself.
+4. **A recorded notification result.** `config/notifications.yaml` (seeded)
+   names the channel: `command` runs a configured argument vector with the
+   task in `SAILOR_TASK_*` variables; `log`, the default, appends to a
+   machine-local file under `state/` and makes `sailor doctor` warn that
+   nobody is told. `onFailure: block` (default) refuses completion when
+   delivery fails, as `notification-failed`; `onFailure: record` records the
+   failure and completes.
+
+The evidence's shape can express success and nothing else - a blocked gate or
+an empty procedure is unrepresentable - and the full reports are persisted
+under `.sailor/state/runs/<run-id>/reports/`, with the summary in the
+committed transition record, so a pull request reviews what was demonstrated
+without needing the machine that demonstrated it.
+
+`completeTask` produces all four honestly: it re-hashes the accepted files
+first, runs the gates and the procedure through the injectable
+`CommandRunner`, persists every report whether or not it passed, notifies,
+and only then takes the task lock to record the transition - the lock's
+stale window is two seconds and gates take as long as the project's scripts
+take, so nothing slow runs under it; a concurrent write surfaces as a stale
+revision. What the guard does not check is provenance: like `approvedBy`,
+the evidence's structure and consistency are enforced and the identity of
+whoever assembled it is not, and `completeTask` is the caller that assembles
+it from real files and real runs.
+
 ## Provider adapters
 
 An agent is invoked through a provider's command line, and the contract every

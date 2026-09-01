@@ -284,6 +284,11 @@ export type {
 } from "./providers/provider-adapter.js";
 
 export { prepareAcceptance } from "./qa/acceptance.js";
+export { completeTask } from "./qa/complete-task.js";
+export type {
+  CompleteTaskOptions,
+  CompletionOutcome,
+} from "./qa/complete-task.js";
 export type {
   PrepareAcceptanceOptions,
   PreparedAcceptance,
@@ -441,6 +446,7 @@ export {
   INTERRUPTED_STATES,
   TASK_FILE_VERSION,
   acceptanceSchema,
+  completionEvidenceSchema,
   fileDigestSchema,
   TASK_STATES,
   WORKFLOW_STATES,
@@ -455,6 +461,7 @@ export {
 export type {
   Acceptance,
   ActiveState,
+  CompletionEvidence,
   FileDigest,
   InterruptedState,
   Task,
@@ -495,6 +502,7 @@ export {
   pendingStages,
 } from "./tasks/workflow.js";
 export {
+  COMPLETION_GATE_PHASES,
   approveSpecification,
   createDefaultRunId,
   createTask,

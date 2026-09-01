@@ -3,21 +3,15 @@ import { z } from "zod";
 import { agentIdSchema } from "../agents/agent-id.js";
 import { commandSpecSchema } from "../enforcement/tool-policy.js";
 import { phaseSchema, severitySchema } from "../rules/rule-schema.js";
-import { sha256Schema, timestampSchema } from "../tasks/task-schema.js";
+import {
+  reportIdSchema,
+  sha256Schema,
+  timestampSchema,
+} from "../tasks/task-schema.js";
 
-/**
- * The identifier a persisted report is filed under. It becomes a file name
- * inside the run's report directory, so it is held to one path segment:
- * both id makers already satisfy it - `createDefaultReportId` is a UUID and
- * `createDeterministicReportId` is 32 hex characters - and an id that could
- * carry a `/` or lead with a dot would name a file somewhere else.
- */
-export const reportIdSchema = z
-  .string()
-  .regex(
-    /^[A-Za-z0-9][A-Za-z0-9-]{0,127}$/,
-    "report ids are single path segments of letters, digits and dashes"
-  );
+// The report id lives beside the task schema now that completion evidence
+// cites reports; re-exported here so readers of gate reports keep one import.
+export { reportIdSchema };
 
 export const GATE_STATUSES = [
   "passed",

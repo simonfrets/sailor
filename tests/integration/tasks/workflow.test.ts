@@ -10,7 +10,11 @@ import { updateTaskFile } from "../../../src/tasks/update-task-file.js";
 import { completedStages, pendingStages } from "../../../src/tasks/workflow.js";
 import { captureRejection } from "../../helpers/expect-error.js";
 import { buildSailorProject } from "../../helpers/sailor-project.js";
-import { RULE_SET_SHA256, buildAcceptance } from "../../helpers/tasks.js";
+import {
+  RULE_SET_SHA256,
+  buildAcceptance,
+  buildCompletionEvidence,
+} from "../../helpers/tasks.js";
 import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
 afterEach(() => {
@@ -94,6 +98,11 @@ const runPipeline = async (root: string): Promise<void> => {
         toAgent,
         ruleSetSha256: RULE_SET_SHA256,
         at,
+        // The completion guard demands evidence; this suite is about the
+        // file on disk, so the evidence is the helper's consistent set.
+        ...(to === "completed"
+          ? { completion: buildCompletionEvidence() }
+          : {}),
       });
     });
   }

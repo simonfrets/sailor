@@ -98,12 +98,10 @@ Three of the twelve, and all three are D's:
 - **8.** Each of the six agents receives a distinct context and tool policy _in
   practice_. The contexts exist and are isolated; nothing hands them to
   anything.
-- **10.** QA cannot complete a task without accepted Gherkin evidence,
+- **10.** ~~QA cannot complete a task without accepted Gherkin evidence,
   executable QA-procedure results, successful final gates and a recorded
-  notification result. None of those four things exists.
-  `transitionTask` records `gateReportIds` and `artifactPaths` on every
-  transition, which is the hook a completion guard will read, but requires
-  neither.
+  notification result. None of those four things exists.~~ **Done**, after
+  D1 and D2; see "The QA completion guard" below.
 - **9** is met and directly tested; **1–7, 11, 12** are met.
 
 `validationMode` is read from the installed config and reported on the profile,
@@ -269,6 +267,50 @@ the `v0.1.0` tarball resolved, hooks chained with the project's first,
 ran the project hook, then the gate, and was blocked by that rule at exit 4,
 as documented. Criteria 4 to 7 and 9 are covered by the integration suites
 that already existed, all green.
+
+### The QA completion guard, after D1 and D2
+
+Acceptance criterion 10 is implemented, in seven commits following the two
+above: Gherkin parsing (`f83cd5b`, with `@cucumber/gherkin` pinned to the
+last CommonJS major, `39.1.0` - moving past it is an ESM test-sailor
+migration, not a parser need), acceptance digests recorded by approval
+(`ad3efda`), persisted run reports (`ae1713b`), the QA procedure as data
+(`fc781c7`), notifications (`416c8cf`), acceptance preparation (`15e01a2`)
+and the guard itself. `README.md`'s "Completing a task" section is the
+reference.
+
+The decisions that were open in the plan, as taken:
+
+- **Approval is strict.** `approveSpecification` now requires an acceptance:
+  at least one feature and one procedure, digested. A task that cannot be
+  demonstrated cannot be approved; a non-functional change gets a trivial
+  feature. A `tasks.yaml` approved by an earlier sailor still parses and is
+  refused at completion, where the absence is acted on.
+- **QA keeps `features/**` and the digests do the guarding.** An edit to an
+  accepted feature blocks completion by content; new step definitions and
+  scenarios for the next task stay writable.
+- **The default channel is `log` and `doctor` warns.** A project completes
+  before it is wired to a webhook; the warning is what says "nobody is told
+  yet", the same shape as the CI warning.
+- **Scenario evidence is derived, not asserted.** Steps declare `covers` at
+  specification time, approval freezes the pairing and checks it total in
+  both directions, and completion derives per-scenario evidence from step
+  results the sailor ran. No agent-authored assertion is in the chain.
+- **Final gates run for every agent's checks** (`agentId: null`), because a
+  coder-only lint rule left unrun at completion would complete a task the
+  next commit cannot make.
+- **Provenance is not checked**, exactly as with `approvedBy`: the guard
+  holds structure and consistency, `completeTask` is the honest producer,
+  and the workflow tests fabricate consistent evidence on purpose.
+
+The integration suite drives a real task over real accepted files to `qa`
+and completes it with a fake process runner: evidence recorded on the
+transition, three reports persisted under the run, a notification line in
+the machine-local log; then each leg is broken in turn - a rewritten
+feature, a blocked gate, a failing step, a dead channel under both
+policies, a stale revision - and completion refuses with the kind and the
+words asserted. `SAILOR_ERROR_KINDS` gained `incomplete-evidence` and
+`notification-failed`, both exit 5.
 
 ### What D3 starts from
 

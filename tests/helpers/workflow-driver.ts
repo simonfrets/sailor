@@ -24,6 +24,7 @@ import {
 import { WORKFLOW_STATES } from "../../src/tasks/task-schema.js";
 import type {
   Acceptance,
+  CompletionEvidence,
   Task,
   TaskState,
   WorkflowState,
@@ -128,10 +129,41 @@ export const buildWorkflowProject = (packageRoot: string): string =>
     ),
   });
 
+const driverCompletionEvidence = (task: Task): CompletionEvidence => {
+  if (task.acceptance === null) {
+    throw new Error("the driver cannot complete a task nobody accepted");
+  }
+
+  return {
+    gates: [
+      {
+        phase: "pre-handoff",
+        reportId: "driver-gate-pre-handoff",
+        status: "passed",
+      },
+      { phase: "qa", reportId: "driver-gate-qa", status: "passed" },
+    ],
+    procedure: {
+      ...task.acceptance.procedure,
+      reportId: "driver-procedure-report",
+      steps: 1,
+    },
+    gherkin: { features: task.acceptance.features, scenarios: 1 },
+    notification: {
+      channel: "log",
+      status: "delivered",
+      detail: "recorded by the test driver",
+      at: stageAt("completed").toISOString(),
+    },
+  };
+};
+
 export interface DriveWorkflowRequest {
   /** This repository's root, which is where the shipped agents are read from. */
   readonly packageRoot: string;
   readonly projectRoot: string;
+  /** What the approval accepts. Defaults to the fabricated digests above. */
+  readonly acceptance?: Acceptance;
   /**
    * Stop once the task has entered this state, as an interrupted run would.
    * Omitted, the pipeline runs to `completed`.
@@ -229,7 +261,7 @@ const handOff = async (
             taskId: task.id,
             expectedRevision: task.revision,
             approvedBy: APPROVED_BY,
-            acceptance: DRIVER_ACCEPTANCE,
+            acceptance: request.acceptance ?? DRIVER_ACCEPTANCE,
             ruleSetSha256: ruleSet.sha256,
             at: APPROVED_AT,
           })
@@ -272,6 +304,11 @@ const handOff = async (
       ruleSetSha256: ruleSet.sha256,
       at: stageAt(to),
       contextPath,
+      // The guard on `completed` demands evidence. The driver fabricates a
+      // consistent set from the task's own acceptance: these tests are about
+      // the workflow, and the guard's own tests hold the evidence to files
+      // and runs that are real.
+      completion: to === "completed" ? driverCompletionEvidence(current) : null,
     });
   });
 };

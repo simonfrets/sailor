@@ -12,6 +12,7 @@ import { captureError } from "../../helpers/expect-error.js";
 import {
   RULE_SET_SHA256,
   buildAcceptance,
+  buildCompletionEvidence,
   buildTask,
   buildTaskFile,
 } from "../../helpers/tasks.js";
@@ -68,6 +69,8 @@ const walkTo = (state: Task["state"], approvedBy = "a-reviewer"): TaskFile => {
       to,
       toAgent,
       at: nextInstant(),
+      // Entering `completed` is guarded: it demands consistent evidence.
+      ...(to === "completed" ? { completion: buildCompletionEvidence() } : {}),
     });
   };
 
@@ -420,6 +423,7 @@ describe("transitionTask", () => {
       attempt: 1,
       failure: null,
       contextPath: ".sailor/state/runs/run-1/agents/cleaner",
+      completion: null,
     });
     expect(task.agentId).toBe("cleaner");
     expect(task.contextPath).toBe(".sailor/state/runs/run-1/agents/cleaner");
@@ -741,5 +745,202 @@ describe("createDefaultRunId", () => {
   it("mints an id the run directory can be named after", () => {
     expect(createDefaultRunId()).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
     expect(createDefaultRunId()).not.toBe(createDefaultRunId());
+  });
+});
+
+describe("the completion guard", () => {
+  it("refuses to complete without evidence, and says what evidence is", () => {
+    const file = walkTo("qa");
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: only(file).revision,
+          to: "completed",
+          toAgent: null,
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("incomplete-evidence");
+    expect(error.message).toContain(
+      "cannot complete without recorded evidence"
+    );
+    expect(error.message).toContain("gates");
+    expect(error.message).toContain("notification");
+  });
+
+  it("completes with consistent evidence and records it on the transition", () => {
+    const file = walkTo("completed");
+    const task = only(file);
+    const last = task.history.at(-1);
+
+    expect(task.state).toBe("completed");
+    expect(last?.completion).toEqual(buildCompletionEvidence());
+  });
+
+  it("refuses evidence about a procedure that is not the accepted one", () => {
+    const file = walkTo("qa");
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: only(file).revision,
+          to: "completed",
+          toAgent: null,
+          completion: buildCompletionEvidence({
+            procedure: {
+              path: "docs/qa/add-login.yaml",
+              sha256: "e".repeat(64),
+              reportId: "qa-procedure-report",
+              steps: 2,
+            },
+          }),
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("incomplete-evidence");
+    expect(error.message).toContain("not the accepted one");
+  });
+
+  it("refuses evidence whose features are not the accepted set", () => {
+    const file = walkTo("qa");
+    const revision = only(file).revision;
+    const rewritten = buildCompletionEvidence({
+      gherkin: {
+        features: [
+          { path: "features/add-login.feature", sha256: "e".repeat(64) },
+        ],
+        scenarios: 3,
+      },
+    });
+    const stranger = buildCompletionEvidence({
+      gherkin: {
+        features: [
+          { path: "features/add-login.feature", sha256: "c".repeat(64) },
+          { path: "features/extra.feature", sha256: "c".repeat(64) },
+        ],
+        scenarios: 3,
+      },
+    });
+
+    for (const [completion, expected] of [
+      [rewritten, "changed since approval"],
+      [stranger, "was not accepted"],
+    ] as const) {
+      const error = captureError(
+        () =>
+          move(file, {
+            expectedRevision: revision,
+            to: "completed",
+            toAgent: null,
+            completion,
+          }),
+        SailorError
+      );
+
+      expect(error.kind).toBe("incomplete-evidence");
+      expect(error.message).toContain(expected);
+    }
+  });
+
+  it("refuses evidence missing one of the final gate phases", () => {
+    const file = walkTo("qa");
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: only(file).revision,
+          to: "completed",
+          toAgent: null,
+          completion: buildCompletionEvidence({
+            gates: [{ phase: "qa", reportId: "gate-qa", status: "passed" }],
+          }),
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("incomplete-evidence");
+    expect(error.message).toContain("no `pre-handoff` gate report");
+  });
+
+  it("cannot even express a failed gate or an empty procedure as evidence", () => {
+    const file = walkTo("qa");
+    const revision = only(file).revision;
+
+    for (const completion of [
+      {
+        ...buildCompletionEvidence(),
+        gates: [
+          { phase: "pre-handoff", reportId: "gate-1", status: "failed" },
+          { phase: "qa", reportId: "gate-2", status: "passed" },
+        ],
+      },
+      {
+        ...buildCompletionEvidence(),
+        procedure: {
+          path: "docs/qa/add-login.yaml",
+          sha256: "d".repeat(64),
+          reportId: "qa-procedure-report",
+          steps: 0,
+        },
+      },
+    ]) {
+      const error = captureError(
+        () =>
+          move(file, {
+            expectedRevision: revision,
+            to: "completed",
+            toAgent: null,
+            completion: completion as never,
+          }),
+        SailorError
+      );
+
+      expect(error.kind).toBe("incomplete-evidence");
+    }
+  });
+
+  it("refuses completion of a task whose approval never recorded acceptance", () => {
+    // A tasks.yaml written before acceptance existed parses; it completes
+    // only after being sent back and approved again.
+    const file = buildTaskFile(
+      buildTask({
+        state: "qa",
+        agentId: "qa",
+        revision: 8,
+        approvedAt: "2026-08-31T10:00:00.000Z",
+        approvedBy: "a-reviewer",
+        acceptance: null,
+      })
+    );
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: 8,
+          to: "completed",
+          toAgent: null,
+          completion: buildCompletionEvidence(),
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("incomplete-evidence");
+    expect(error.message).toContain("records no acceptance");
+  });
+
+  it("refuses completion evidence on any other transition", () => {
+    const file = walkTo("hardening");
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: only(file).revision,
+          to: "qa",
+          toAgent: "qa",
+          completion: buildCompletionEvidence(),
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("invalid-transition");
+    expect(error.message).toContain("must not record completion evidence");
   });
 });
