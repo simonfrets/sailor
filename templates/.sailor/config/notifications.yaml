@@ -1,0 +1,25 @@
+# How the sailor tells a human that a task completed.
+#
+# This file belongs to the project: it is written once by `sailor init` and
+# never reconciled, so edit it freely.
+#
+# channel: log       append a JSON line to .sailor/state/notifications.jsonl.
+#                    The file is git-ignored and machine-local, so this
+#                    records the completion and tells nobody; `sailor doctor`
+#                    warns while this is the channel.
+# channel: command   run `command.argv` (an argument vector, never a shell
+#                    string) with the task described in SAILOR_TASK_ID,
+#                    SAILOR_TASK_TITLE, SAILOR_TASK_STATE,
+#                    SAILOR_TASK_REVISION, SAILOR_TASK_RUN_ID and
+#                    SAILOR_NOTIFIED_AT environment variables. Exit 0 means
+#                    delivered.
+#
+# onFailure: block   a completion whose notification fails is refused.
+# onFailure: record  the failure is recorded in the evidence and completion
+#                    proceeds.
+version: 1
+channel: log
+onFailure: block
+command:
+  argv: []
+  timeoutMs: 30000

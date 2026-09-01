@@ -2,6 +2,7 @@ import { readdirSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 import { loadHooksConfig } from "../config/hooks-config.js";
+import { readInstalledNotificationsConfig } from "../config/notifications-config.js";
 import type { HooksConfig } from "../config/hooks-config.js";
 import { loadProjectConfig } from "../config/project-config.js";
 import { describeFailure } from "../sailor/sailor-error.js";
@@ -269,6 +270,43 @@ const diagnoseConfig = (projectRoot: string): ConfigDiagnosis => {
           )
         : diagnostic("config", "Configuration", "problem", problems.join("\n")),
   };
+};
+
+/**
+ * Whether a completed task actually reaches a human.
+ *
+ * The `log` channel is the seeded default and records completions to a
+ * machine-local file nobody reads, so it is a warning rather than an ok: the
+ * installation works, and the project should know that "notified" currently
+ * means "written to a file on one machine". An invalid file is a problem for
+ * the reason a mistyped `validationMode` is: the project asked for something
+ * and is quietly getting something else.
+ */
+const diagnoseNotifications = (projectRoot: string): Diagnostic => {
+  try {
+    const config = readInstalledNotificationsConfig(projectRoot);
+
+    return config.channel === "command"
+      ? diagnostic(
+          "notifications",
+          "Notifications",
+          "ok",
+          `completions run \`${config.command.argv.join(" ")}\``
+        )
+      : diagnostic(
+          "notifications",
+          "Notifications",
+          "warning",
+          `completions are appended to a machine-local log and reach nobody; set \`channel: command\` in ${SAILOR_DIRECTORY}/${SAILOR_PATHS.notificationsConfig}`
+        );
+  } catch (error: unknown) {
+    return diagnostic(
+      "notifications",
+      "Notifications",
+      "problem",
+      describeFailure(error)
+    );
+  }
 };
 
 interface RulesDiagnosis {
@@ -623,6 +661,7 @@ export const diagnoseSailor = async (
     ...tools,
     diagnoseInstallation(projectRoot, options.sailorVersion),
     config.diagnostic,
+    diagnoseNotifications(projectRoot),
     rules.diagnostic,
     ...(scripts === null ? [] : [scripts]),
     diagnoseRuntime(projectRoot),

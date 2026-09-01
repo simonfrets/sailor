@@ -32,6 +32,7 @@ describe("listSailorTemplateFiles", () => {
       "agents/specifier.yaml",
       "ci/github-actions.yml",
       "config/hooks.yaml",
+      "config/notifications.yaml",
       "config/project.yaml",
       "rules/base.yaml",
       "rules/custom/README.md",
@@ -63,7 +64,7 @@ describe("listSailorTemplateFiles", () => {
 });
 
 describe("seeded templates", () => {
-  it("hands exactly the two configuration files to the project", () => {
+  it("hands exactly the three configuration files to the project", () => {
     // Adding a template is a decision about who owns it, so this list is
     // asserted rather than derived from a path prefix.
     expect(

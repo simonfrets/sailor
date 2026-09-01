@@ -26,6 +26,8 @@ export const SAILOR_PATHS = {
   hooksConfig: join("config", "hooks.yaml"),
   launcher: join("bin", "sailor"),
   manifest: "version.json",
+  notificationsConfig: join("config", "notifications.yaml"),
+  notificationsLog: join("state", "notifications.jsonl"),
   packageManifest: "package.json",
   projectConfig: join("config", "project.yaml"),
   rules: "rules",

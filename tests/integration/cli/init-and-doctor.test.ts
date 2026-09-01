@@ -246,7 +246,10 @@ describe("sailor doctor", () => {
     );
     // No workflow was placed, so CI is a warning: hooks alone are skippable.
     expect(result.stdout).toContain("WARN Continuous integration —");
-    expect(result.stdout).toContain("Result: 0 problems, 1 warning");
+    // The seeded notification channel is the machine-local log, so a fresh
+    // installation is told that completions reach nobody yet.
+    expect(result.stdout).toContain("WARN Notifications —");
+    expect(result.stdout).toContain("Result: 0 problems, 2 warnings");
     expect(result.exitCode).toBe(CLI_EXIT_CODES.ok);
   });
 

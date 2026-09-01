@@ -65,6 +65,30 @@ export {
 } from "./config/project-config.js";
 export type { ProjectConfig } from "./config/project-config.js";
 export {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_FAILURE_POLICIES,
+  loadNotificationsConfig,
+  notificationChannelSchema,
+  notificationFailurePolicySchema,
+  notificationsConfigSchema,
+  readInstalledNotificationsConfig,
+} from "./config/notifications-config.js";
+export type {
+  NotificationChannel,
+  NotificationFailurePolicy,
+  NotificationsConfig,
+} from "./config/notifications-config.js";
+export {
+  NOTIFICATIONS_LOG_PATH,
+  createNotifier,
+} from "./notifications/notifier.js";
+export type {
+  CreateNotifierOptions,
+  NotificationResult,
+  Notifier,
+  TaskNotification,
+} from "./notifications/notifier.js";
+export {
   EXISTING_HOOK_POLICIES,
   existingHookPolicySchema,
   hooksConfigSchema,
