@@ -283,6 +283,11 @@ export type {
   RecordAgentRunOptions,
 } from "./providers/provider-adapter.js";
 
+export { prepareAcceptance } from "./qa/acceptance.js";
+export type {
+  PrepareAcceptanceOptions,
+  PreparedAcceptance,
+} from "./qa/acceptance.js";
 export { listScenarios } from "./qa/gherkin.js";
 export type { ListScenariosOptions } from "./qa/gherkin.js";
 export {
