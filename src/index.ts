@@ -259,6 +259,9 @@ export type {
   RecordAgentRunOptions,
 } from "./providers/provider-adapter.js";
 
+export { listScenarios } from "./qa/gherkin.js";
+export type { ListScenariosOptions } from "./qa/gherkin.js";
+
 export { compileAgentPolicy } from "./prompts/compile-agent-policy.js";
 export type { CompileAgentPolicyInput } from "./prompts/compile-agent-policy.js";
 

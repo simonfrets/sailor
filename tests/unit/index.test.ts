@@ -149,6 +149,7 @@ const PUBLIC_API = [
   "isWorkflowState",
   "killProcessTree",
   "listSailorTemplateFiles",
+  "listScenarios",
   "loadAgentDefinition",
   "loadHooksConfig",
   "loadProjectConfig",
