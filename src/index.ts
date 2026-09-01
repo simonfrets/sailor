@@ -382,6 +382,8 @@ export type {
 export {
   INTERRUPTED_STATES,
   TASK_FILE_VERSION,
+  acceptanceSchema,
+  fileDigestSchema,
   TASK_STATES,
   WORKFLOW_STATES,
   runIdSchema,
@@ -393,7 +395,9 @@ export {
   transitionRecordSchema,
 } from "./tasks/task-schema.js";
 export type {
+  Acceptance,
   ActiveState,
+  FileDigest,
   InterruptedState,
   Task,
   TaskFailure,

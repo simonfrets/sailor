@@ -5,6 +5,7 @@ import { SailorError } from "../sailor/sailor-error.js";
 import { TASK_FILE_SOURCE, findTask, requireTask } from "./task-file.js";
 import { STATE_AGENTS, describeStateOwner, taskSchema } from "./task-schema.js";
 import type {
+  Acceptance,
   Task,
   TaskFailure,
   TaskFile,
@@ -110,6 +111,7 @@ export const createTask = (
           updatedAt: at,
           approvedAt: null,
           approvedBy: null,
+          acceptance: null,
           interruptedFrom: null,
           contextPath: null,
           history: [],
@@ -125,6 +127,12 @@ export interface ApproveSpecificationRequest {
   readonly expectedRevision: number;
   /** Who approved it. A person or a system, never the agent being unblocked. */
   readonly approvedBy: string;
+  /**
+   * The features and QA procedure the approval accepts, pinned by digest.
+   * Completion later demands evidence about exactly these files, so an
+   * approval that named none would approve work nothing can demonstrate.
+   */
+  readonly acceptance: Acceptance;
   readonly ruleSetSha256: string;
   readonly at: Date;
 }
@@ -172,6 +180,7 @@ export const approveSpecification = (
         updatedAt: at,
         approvedAt: at,
         approvedBy: request.approvedBy,
+        acceptance: request.acceptance,
         history: [
           ...task.history,
           {
@@ -183,7 +192,11 @@ export const approveSpecification = (
             toAgent: task.agentId,
             ruleSetSha256: request.ruleSetSha256,
             gateReportIds: [],
-            artifactPaths: [],
+            // The approval record points at what it accepted.
+            artifactPaths: [
+              ...request.acceptance.features.map((digest) => digest.path),
+              request.acceptance.procedure.path,
+            ],
             at,
             attempt: Math.max(1, entriesInto(task, "awaiting_approval")),
             failure: null,
@@ -339,6 +352,7 @@ export const transitionTask = (
         updatedAt: at,
         approvedAt: clearsApproval ? null : task.approvedAt,
         approvedBy: clearsApproval ? null : task.approvedBy,
+        acceptance: clearsApproval ? null : task.acceptance,
         interruptedFrom: interrupting ? stoppedIn : null,
         contextPath,
         history: [...task.history, record],

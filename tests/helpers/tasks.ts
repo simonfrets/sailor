@@ -1,4 +1,5 @@
 import type {
+  Acceptance,
   Task,
   TaskFile,
   TransitionRecord,
@@ -18,9 +19,19 @@ export const buildTask = (overrides: Partial<Task> = {}): Task => ({
   updatedAt: "2026-08-27T00:00:00.000Z",
   approvedAt: null,
   approvedBy: null,
+  acceptance: null,
   interruptedFrom: null,
   contextPath: null,
   history: [],
+  ...overrides,
+});
+
+/** What an approval accepted, for tests that do not read the files behind it. */
+export const buildAcceptance = (
+  overrides: Partial<Acceptance> = {}
+): Acceptance => ({
+  features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+  procedure: { path: "docs/qa/add-login.yaml", sha256: "d".repeat(64) },
   ...overrides,
 });
 

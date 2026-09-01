@@ -11,6 +11,7 @@ import { requireTask } from "../../../src/tasks/task-file.js";
 import { captureError } from "../../helpers/expect-error.js";
 import {
   RULE_SET_SHA256,
+  buildAcceptance,
   buildTask,
   buildTaskFile,
 } from "../../helpers/tasks.js";
@@ -85,6 +86,7 @@ const walkTo = (state: Task["state"], approvedBy = "a-reviewer"): TaskFile => {
     taskId: "add-login",
     expectedRevision: only(file).revision,
     approvedBy,
+    acceptance: buildAcceptance(),
     ruleSetSha256: RULE_SET_SHA256,
     at: nextInstant(),
   });
@@ -188,6 +190,7 @@ describe("stale revisions", () => {
           taskId: "add-login",
           expectedRevision: 1,
           approvedBy: "a-reviewer",
+          acceptance: buildAcceptance(),
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
@@ -245,6 +248,67 @@ describe("approval", () => {
     expect(approval?.revision).toBe(before.revision);
   });
 
+  it("records what was accepted, and where a reader can find it", () => {
+    const file = walkTo("implementing");
+    const task = only(file);
+    const approval = task.history.find((record) => record.from === record.to);
+
+    expect(task.acceptance).toEqual(buildAcceptance());
+    expect(approval?.artifactPaths).toEqual([
+      "features/add-login.feature",
+      "docs/qa/add-login.yaml",
+    ]);
+  });
+
+  it("refuses an acceptance that accepts nothing", () => {
+    // walkTo("awaiting_approval") approves on the way, so step there by hand.
+    const file = move(walkTo("specified"), {
+      expectedRevision: 2,
+      to: "awaiting_approval",
+      toAgent: null,
+    });
+    const error = captureError(
+      () =>
+        approveSpecification(file, {
+          taskId: "add-login",
+          expectedRevision: only(file).revision,
+          approvedBy: "a-reviewer",
+          acceptance: buildAcceptance({ features: [] }),
+          ruleSetSha256: RULE_SET_SHA256,
+          at: AT,
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("invalid-config");
+    expect(error.message).toContain("features");
+  });
+
+  it("refuses an accepted file that lives outside the project", () => {
+    const file = move(walkTo("specified"), {
+      expectedRevision: 2,
+      to: "awaiting_approval",
+      toAgent: null,
+    });
+    const error = captureError(
+      () =>
+        approveSpecification(file, {
+          taskId: "add-login",
+          expectedRevision: only(file).revision,
+          approvedBy: "a-reviewer",
+          acceptance: buildAcceptance({
+            procedure: { path: "../qa.yaml", sha256: "d".repeat(64) },
+          }),
+          ruleSetSha256: RULE_SET_SHA256,
+          at: AT,
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("invalid-config");
+    expect(error.message).toContain("procedure");
+  });
+
   it("refuses to approve a task that is not awaiting approval", () => {
     const file = walkTo("specified");
     const error = captureError(
@@ -253,6 +317,7 @@ describe("approval", () => {
           taskId: "add-login",
           expectedRevision: only(file).revision,
           approvedBy: "a-reviewer",
+          acceptance: buildAcceptance(),
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
@@ -271,6 +336,7 @@ describe("approval", () => {
           taskId: "add-login",
           expectedRevision: only(file).revision,
           approvedBy: "someone-else",
+          acceptance: buildAcceptance(),
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
@@ -298,6 +364,8 @@ describe("approval", () => {
 
     expect(only(file).approvedAt).toBeNull();
     expect(only(file).approvedBy).toBeNull();
+    // The acceptance goes with it: what was accepted no longer exists.
+    expect(only(file).acceptance).toBeNull();
 
     const error = captureError(
       () =>

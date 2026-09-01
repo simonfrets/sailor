@@ -23,6 +23,7 @@ import {
 } from "../../src/tasks/task-file.js";
 import { WORKFLOW_STATES } from "../../src/tasks/task-schema.js";
 import type {
+  Acceptance,
   Task,
   TaskState,
   WorkflowState,
@@ -44,6 +45,17 @@ export const TASK_ID = "add-login";
 export const TASK_TITLE = "Add login";
 export const RUN_ID = "run-1";
 export const APPROVED_BY = "a-reviewer";
+
+/**
+ * What the driver's approval accepts. The digests are fabricated: the pure
+ * state machine records them without reading a file, and the tests driving
+ * whole workflows are not about acceptance verification, which has real-file
+ * tests of its own.
+ */
+export const DRIVER_ACCEPTANCE: Acceptance = {
+  features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+  procedure: { path: "docs/qa/add-login.yaml", sha256: "d".repeat(64) },
+};
 
 /** When the task is written down. Every stage is entered after it. */
 export const STARTED_AT = new Date("2026-08-27T10:00:00.000Z");
@@ -217,6 +229,7 @@ const handOff = async (
             taskId: task.id,
             expectedRevision: task.revision,
             approvedBy: APPROVED_BY,
+            acceptance: DRIVER_ACCEPTANCE,
             ruleSetSha256: ruleSet.sha256,
             at: APPROVED_AT,
           })

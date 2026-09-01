@@ -145,6 +145,28 @@ export const timestampSchema = z.iso.datetime();
 
 export const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
+/** One project file, pinned to its content. */
+export const fileDigestSchema = z.strictObject({
+  path: projectRelativePathSchema,
+  /** SHA-256 of the file's bytes when it was accepted. */
+  sha256: sha256Schema,
+});
+
+/**
+ * What the approval accepted: the feature files naming the scenarios the
+ * task must satisfy, and the executable QA procedure that will demonstrate
+ * them. Digests rather than paths alone, so completion can prove the files
+ * QA ran are the files that were approved and not versions rewritten since -
+ * QA's own write scope includes `features/**`, and an agent that could adjust
+ * a scenario to match the behaviour would be accepting its own work.
+ */
+export const acceptanceSchema = z.strictObject({
+  features: z
+    .array(fileDigestSchema)
+    .min(1, "an approval must accept at least one feature file"),
+  procedure: fileDigestSchema,
+});
+
 /** Why a task was blocked or failed. Never a bare boolean. */
 export const taskFailureSchema = z.strictObject({
   reason: z.string().min(1),
@@ -211,6 +233,12 @@ const taskShape = z.strictObject({
    */
   approvedAt: timestampSchema.nullable().default(null),
   approvedBy: z.string().min(1).nullable().default(null),
+  /**
+   * What the approval accepted, or null before one. Defaulted so a
+   * `tasks.yaml` written before acceptance existed still parses; a task
+   * approved without one cannot complete, which is where the absence bites.
+   */
+  acceptance: acceptanceSchema.nullable().default(null),
   /** The stage a blocked or failed task was interrupted in. */
   interruptedFrom: activeStateSchema.nullable().default(null),
   /** The context the current agent was handed. */
@@ -239,6 +267,15 @@ export const taskSchema = taskShape.superRefine((task, ctx) => {
       path: ["approvedBy"],
       message:
         "`approvedAt` and `approvedBy` are one fact: record both or neither",
+    });
+  }
+
+  if (task.acceptance !== null && task.approvedAt === null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["acceptance"],
+      message:
+        "acceptance is recorded by the approval: a task nobody approved accepts nothing",
     });
   }
 
@@ -278,6 +315,8 @@ export const taskFileSchema = z
     }
   });
 
+export type FileDigest = z.output<typeof fileDigestSchema>;
+export type Acceptance = z.output<typeof acceptanceSchema>;
 export type TaskFailure = z.output<typeof taskFailureSchema>;
 export type TransitionRecord = z.output<typeof transitionRecordSchema>;
 export type Task = z.output<typeof taskSchema>;
