@@ -90,6 +90,47 @@ describe("writeRunReport and readRunReport", () => {
     });
   });
 
+  it("round-trips a QA procedure report through the same directory", () => {
+    const root = buildSailorProject();
+    const report = {
+      reportId: "b".repeat(32),
+      startedAt: "2026-08-31T11:58:00.000Z",
+      finishedAt: "2026-08-31T11:59:00.000Z",
+      durationMs: 60_000,
+      steps: [
+        {
+          stepId: "acceptance",
+          covers: ["Happy path"],
+          status: "passed" as const,
+          command: { executable: "node", args: ["--test"] },
+          exitCode: 0,
+          signal: null,
+          stdout: "",
+          stderr: "",
+          outputTruncated: false,
+          durationMs: 59_000,
+          detail: "exited with code 0",
+        },
+      ],
+      passed: true,
+      failedStepIds: [],
+    };
+
+    writeRunReport(root, {
+      runId: "run-1",
+      kind: "qa-procedure",
+      report,
+      writtenAt: WRITTEN_AT,
+    });
+
+    expect(readRunReport(root, "run-1", "b".repeat(32))).toEqual({
+      version: 1,
+      kind: "qa-procedure",
+      writtenAt: "2026-08-31T12:00:00.000Z",
+      report,
+    });
+  });
+
   it("reports a run this machine has no reports for as absent, not broken", () => {
     const root = buildSailorProject();
 

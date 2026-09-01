@@ -8,6 +8,8 @@ import {
   reportIdSchema,
 } from "../gates/gate-report-schema.js";
 import type { PhaseGateReport } from "../gates/run-phase-gates.js";
+import { qaProcedureReportSchema } from "../qa/procedure.js";
+import type { QaProcedureReport } from "../qa/procedure.js";
 import { writeFileAtomic } from "../sailor/atomic-write.js";
 import { SailorError } from "../sailor/sailor-error.js";
 import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
@@ -23,12 +25,20 @@ const REPORT_MODE = 0o644;
  * results land beside the gate reports - and a reader knows which schema it
  * is looking at before it looks.
  */
-export const runReportSchema = z.strictObject({
-  version: z.literal(RUN_REPORT_VERSION),
-  kind: z.literal("phase-gates"),
-  writtenAt: timestampSchema,
-  report: phaseGateReportSchema,
-});
+export const runReportSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    version: z.literal(RUN_REPORT_VERSION),
+    kind: z.literal("phase-gates"),
+    writtenAt: timestampSchema,
+    report: phaseGateReportSchema,
+  }),
+  z.strictObject({
+    version: z.literal(RUN_REPORT_VERSION),
+    kind: z.literal("qa-procedure"),
+    writtenAt: timestampSchema,
+    report: qaProcedureReportSchema,
+  }),
+]);
 
 export type StoredRunReport = z.output<typeof runReportSchema>;
 
@@ -67,12 +77,13 @@ const validatedSegment = (
   return parsed.data;
 };
 
-export interface WriteRunReportInput {
+export type WriteRunReportInput = {
   readonly runId: string;
-  readonly kind: "phase-gates";
-  readonly report: PhaseGateReport;
   readonly writtenAt: Date;
-}
+} & (
+  | { readonly kind: "phase-gates"; readonly report: PhaseGateReport }
+  | { readonly kind: "qa-procedure"; readonly report: QaProcedureReport }
+);
 
 /**
  * Persists one report under its run and returns the project-relative path it

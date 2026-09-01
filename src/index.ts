@@ -261,6 +261,23 @@ export type {
 
 export { listScenarios } from "./qa/gherkin.js";
 export type { ListScenariosOptions } from "./qa/gherkin.js";
+export {
+  QA_STEP_STATUSES,
+  loadQaProcedure,
+  qaProcedureReportSchema,
+  qaProcedureSchema,
+  qaStepResultSchema,
+  qaStepSchema,
+  qaStepStatusSchema,
+  runQaProcedure,
+} from "./qa/procedure.js";
+export type {
+  QaProcedure,
+  QaProcedureReport,
+  QaStep,
+  QaStepResult,
+  RunQaProcedureOptions,
+} from "./qa/procedure.js";
 
 export { compileAgentPolicy } from "./prompts/compile-agent-policy.js";
 export type { CompileAgentPolicyInput } from "./prompts/compile-agent-policy.js";
