@@ -274,6 +274,18 @@ export type {
   ResolveProjectScriptInput,
 } from "./gates/resolve-project-script.js";
 export {
+  GATE_STATUSES,
+  PHASE_GATE_STATUSES,
+  gateResultSchema,
+  gateStatusSchema,
+  phaseGateReportSchema,
+  reportIdSchema,
+} from "./gates/gate-report-schema.js";
+export type {
+  StoredGateResult,
+  StoredPhaseGateReport,
+} from "./gates/gate-report-schema.js";
+export {
   createDefaultReportId,
   createDeterministicReportId,
   runPhaseGates,
@@ -447,6 +459,18 @@ export type {
   CreateTaskRequest,
   TransitionRequest,
 } from "./tasks/transition-task.js";
+export {
+  RUN_REPORT_VERSION,
+  readRunReport,
+  runReportFile,
+  runReportsDirectory,
+  runReportSchema,
+  writeRunReport,
+} from "./tasks/run-report.js";
+export type {
+  StoredRunReport,
+  WriteRunReportInput,
+} from "./tasks/run-report.js";
 export {
   AGENT_CONTEXT_FILE,
   AGENT_CONTEXT_VERSION,
