@@ -3,6 +3,7 @@ import { isAbsolute } from "node:path";
 import { z } from "zod";
 
 import type { ModelProfile } from "../agents/agent-definition.js";
+import type { AgentId } from "../agents/agent-id.js";
 import { toolPolicyFromContext } from "../enforcement/tool-policy.js";
 import type { ToolPolicy } from "../enforcement/tool-policy.js";
 import { deepFreeze } from "../sailor/deep-freeze.js";
@@ -35,6 +36,8 @@ export type ProviderId = z.output<typeof providerIdSchema>;
 export interface AgentInvocation {
   /** Absolute. The adapter runs the provider here. */
   readonly projectRoot: string;
+  /** The agent this run is of: the task's owner, which the builder has checked is one. */
+  readonly agentId: AgentId;
   /** The agent's context directory, relative to the project root. */
   readonly contextPath: string;
   /** Frozen. A view of the task as it stood when the run began. */
@@ -165,6 +168,7 @@ export const buildAgentInvocation = (
 
   return Object.freeze({
     projectRoot: input.projectRoot,
+    agentId: task.agentId,
     contextPath,
     task: deepFreeze(structuredClone(task)),
     attempt: context.attempt,

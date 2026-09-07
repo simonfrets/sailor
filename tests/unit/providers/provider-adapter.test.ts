@@ -146,6 +146,7 @@ describe("buildAgentInvocation", () => {
 
     expect(invocation).toEqual({
       projectRoot: PROJECT_ROOT,
+      agentId: "coder",
       contextPath: ".sailor/state/runs/run-1/agents/coder",
       task: built.task,
       attempt: 2,

@@ -28,8 +28,12 @@ at it - is the runtime's job, and there is no runtime.
 
 The contract a provider adapter implements exists, and an agent's tool policy
 is enforced around an invocation rather than described in its prompt. The
-Codex and Claude adapters themselves are **not** implemented, so nothing
-invokes an agent yet and the workflow is driven through the library.
+Claude adapter is implemented against the installed CLI: it runs
+`claude --print` under the agent's policy, decides every tool call through a
+hook before the call runs, and the working tree is audited afterwards. The
+Codex adapter is **not**: `codex` is not installed where this was built, and
+a guessed adapter would ship behind a passing suite. Nothing yet drives a
+task through its agents, so the workflow is still driven through the library.
 
 ## Requirements
 
@@ -693,12 +697,78 @@ condition an exit code should describe. `finishedEventOf` turns a
 `nodeCommandRunner` gets its timeouts, output caps and environment allowlist
 from there and its final status from here.
 
-No adapter exists yet, and that is deliberate. An adapter is written against
-the installed CLI's `--help`, because provider flags are version-sensitive and
-a guessed flag would ship behind a passing test suite: no test may make a live
-call, so no test could catch it. `claude` is installed on the machine this was
-built on and `codex` is not, so the Claude adapter is the next step and the
-Codex adapter waits for its CLI. The contract carries no provider flag.
+An adapter is written against the installed CLI's `--help`, because provider
+flags are version-sensitive and a guessed flag would ship behind a passing
+test suite: no test may make a live call, so no test could catch it. `claude`
+is installed on the machine this was built on and `codex` is not, so the
+Claude adapter exists and the Codex adapter waits for its CLI. The contract
+carries no provider flag.
+
+### The Claude adapter
+
+`createClaudeCliAdapter` runs one `claude` process per invocation through the
+injected `CommandRunner`, with the flags `claude --help` (2.1.263) documents
+for a governed, non-interactive session, and nothing it does not:
+
+- `--print --output-format stream-json --verbose`: one turn, reported as one
+  JSON line per message, read as it arrives. `--no-session-persistence`: the
+  transcript the sailor keeps is the record, not the user's session store.
+- `--restricted --strict-mcp-config --disable-slash-commands`: the file tools
+  are confined to the project, the tools that run code exist only if `--tools`
+  names them, no MCP server and no skill is loaded, and the user's, the
+  project's and the local settings files are ignored while `--settings` still
+  applies. `CLAUDE.md` files are still read; the only flags that stop that
+  also stop the gate or the login.
+- `--tools`: `Read,Glob,Grep,Edit,Write,NotebookEdit`, plus `Bash` only for an
+  agent with `execute: true`. Every agent keeps the file tools because every
+  agent may write to its own scratch directory; which paths is the gate's
+  decision.
+- `--permission-prompts none`: nobody answers a prompt, so whatever would
+  have prompted is denied unless the gate allowed it first.
+- `--model`: the logical profile mapped through `DEFAULT_CLAUDE_MODELS`
+  (`opus`, `opus`, `sonnet`, the aliases `--help` documents) or the mapping
+  the adapter was given. `--max-budget-usd` when a cap is configured.
+- `--settings`: a `PreToolUse` hook on every tool. The hook is the gate.
+
+The gate is `tool-gate-main.js`, shipped in `dist/` and run by the CLI
+through `sh -c` before each tool call with the call as JSON on stdin. It
+reads its configuration - project root, the invocation's `ToolPolicy`, and
+where to log - from one environment variable the adapter sets on the CLI's
+process, maps the call to a `ToolAction`, asks `evaluateToolAction`, appends
+the decision to a log and answers the CLI in the shape the hooks reference
+documents. It fails closed: anything that stops a decision being made exits
+`2`, which blocks the call. A `Read`, `Edit`, `Write` or `NotebookEdit` is
+the path it names, made canonical on both sides - the CLI reports real paths,
+and a project root reached through a symbolic link is the same place - and
+re-expressed from the project root; a path that leaves the project is refused
+as `outside-project` before the policy is consulted. `Glob` and `Grep` are
+searches. A `Bash` command that is plainly words is the argument vector the
+policy decides; one that needs a shell - a pipe, a redirection, `$`, a glob -
+is recorded as `sh -c <command>`, which is what the tool runs and which no
+policy grants. A tool the gate does not know is refused loudly, because the
+session was given exactly the tools it knows.
+
+The adapter reports the run as the contract's events: the CLI's text as
+`output`, each decision as a `tool-action` when the CLI prints the tool's
+result, the CLI's stderr as `output`, and `finishedEventOf` the runner's
+result. The invocation's abort signal terminates the process and the run is
+`aborted`. A `tool_use` in the transcript with no decision in the log is
+`tool-gate-failed`, exit `5`, thrown from the adapter: a CLI that ran a tool
+without consulting the gate is one whose run the sailor cannot vouch for.
+The decision log and the verbatim transcript land under
+`.sailor/state/runs/<run-id>/claude/<agent-id>/attempt-<n>.*`, beside the
+agent's directory rather than inside it, so the record of what the agent did
+is not something the agent may write.
+
+`recordAuditedAgentRun` is the provider-neutral wrapper that makes the audit
+mechanical: it snapshots the tree, drives the adapter through
+`recordAgentRun`, snapshots again and puts every changed path to the
+invocation's policy, with the private index under `.sailor/state/audit/`.
+
+What the mechanism enforces is exactly as strong as the CLI's reporting of
+its own tool calls, and the audit covers writes whatever the CLI reported.
+`nodeCommandRunner` forwards `USER` for this adapter's sake: the CLI keeps
+its login in the macOS keychain and finds it by account name.
 
 ## Tool policy enforcement
 
@@ -768,8 +838,8 @@ sailor does on its own.
 
 ## Planned modules
 
-- Claude and Codex adapters behind the contract, each written against its
-  installed CLI
-- A runtime that invokes the adapters, audits each run against its tool policy
-  and drives a task through its agents
+- The Codex adapter behind the contract, written against its installed CLI
+- Provider and model configuration in `.sailor/config/`
+- A runtime that drives a task through its agents, recording each audited
+  run on the task
 - Specifier, coder, cleaner, architect, hardener, and QA agents

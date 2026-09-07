@@ -18,6 +18,8 @@ export const SAILOR_DIRECTORY = ".sailor";
  */
 export const SAILOR_PATHS = {
   agents: "agents",
+  /** Private git indexes the working-tree audit stages into. Ignored, like all of `state/`. */
+  audit: join("state", "audit"),
   bin: "bin",
   config: "config",
   customRules: join("rules", "custom"),

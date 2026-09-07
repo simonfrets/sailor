@@ -230,6 +230,7 @@ export {
   toolDecisionSchema,
   toolDenialSchema,
   toolPolicyFromContext,
+  toolPolicySchema,
 } from "./enforcement/tool-policy.js";
 export type {
   DeniedToolDecision,
@@ -282,6 +283,70 @@ export type {
   ProviderId,
   RecordAgentRunOptions,
 } from "./providers/provider-adapter.js";
+export {
+  auditIndexFile,
+  recordAuditedAgentRun,
+} from "./providers/audited-run.js";
+export type {
+  AuditedAgentRunRecord,
+  RecordAuditedAgentRunOptions,
+} from "./providers/audited-run.js";
+export {
+  CLAUDE_PRINT_FLAGS,
+  CLAUDE_TOOL_GATE_MATCHER,
+  DEFAULT_CLAUDE_COMMAND,
+  DEFAULT_CLAUDE_MODELS,
+  buildClaudeCommand,
+  buildClaudePrompt,
+  claudeRunDirectory,
+  claudeRunFiles,
+  claudeToolGateCommand,
+  createClaudeCliAdapter,
+  quoteForPosixShell,
+} from "./providers/claude/claude-cli-adapter.js";
+export type {
+  BuildClaudeCommandInput,
+  ClaudeCliAdapterOptions,
+  ClaudePrompt,
+  ClaudeRunFiles,
+} from "./providers/claude/claude-cli-adapter.js";
+export {
+  createLineSplitter,
+  readClaudeStreamLine,
+} from "./providers/claude/claude-stream.js";
+export type {
+  ClaudeStreamItem,
+  LineSplitter,
+} from "./providers/claude/claude-stream.js";
+export {
+  CLAUDE_GATE_ENVIRONMENT_VARIABLE,
+  CLAUDE_GATE_RECORD_VERSION,
+  CLAUDE_GATE_VERSION,
+  CLAUDE_TOOL_GATE_BUILT,
+  CLAUDE_TOOL_GATE_SOURCE,
+  CLAUDE_TOOL_NAMES,
+  appendClaudeGateRecord,
+  claudeGateConfigSchema,
+  claudeGateRecordSchema,
+  claudeHookInputSchema,
+  claudeToolsFor,
+  decideClaudeToolUse,
+  parseClaudeGateConfig,
+  parseClaudeHookInput,
+  projectRelativeClaudePath,
+  readClaudeGateLog,
+  splitPlainCommand,
+  toolActionOfClaudeToolUse,
+} from "./providers/claude/tool-gate.js";
+export type {
+  ClaudeGateConfig,
+  ClaudeGateRecord,
+  ClaudeHookInput,
+  ClaudeHookResponse,
+  DecideClaudeToolUseInput,
+  DecidedClaudeToolUse,
+  MappedClaudeToolUse,
+} from "./providers/claude/tool-gate.js";
 
 export { prepareAcceptance } from "./qa/acceptance.js";
 export { completeTask } from "./qa/complete-task.js";
