@@ -119,3 +119,206 @@ directly. Do not describe partial work as complete.
 > `claude --help` before writing a single provider flag; `codex` is not
 > installed, so leave D4 unwritten. Run the completion gate, demonstrate
 > one real invocation by hand, and report any deviation directly.
+
+## What D3 added
+
+Four commits on `codex/milestone-d3`, cut from `codex/milestone-d` at
+`1921bea`. The repository moved while this was built: the GitHub project is
+now `simonfrets/sailor`, and the local checkout is the plain clone at
+`<PROJECTS>/sailor` with this branch as the sibling worktree
+`<PROJECTS>/sailor-codex-milestone-d3`. The bare repository at
+`<PROJECTS>/sailor` and its two remaining worktrees
+(`sailor-codex-basic-structure` on `codex/milestone-d`, and the
+stale `sailor-v1-scaffold`) point at the same remote, are clean, and are
+kept only until someone deletes them.
+
+**This branch still carries the pre-rename names** - `.sailor/`,
+`src/sailor/`, `SAILOR_*` - because it was cut from `codex/milestone-d`
+as instructed, and that branch predates PR #4. `main` has the rename. A
+dry-run merge of `main` into `codex/milestone-d` conflicts in nine files
+(`README.md`, `src/tasks/agent-context.ts`, `src/tasks/task-schema.ts`,
+four tests, and two files added under directories the rename moved), and
+every file this branch adds imports from `src/sailor/`. Rebasing
+`codex/milestone-d` and this branch onto `main` is a session of its own and
+comes before D5.
+
+`npm run check`, `npm run build`, `npm run test:coverage` and
+`npm pack --dry-run` pass: 947 tests across 82 suites at 98.64% statements,
+verified under the simulated hook environment. Eight mutations were applied
+and each turned at least one test red: outside paths allowed, the undecided
+tool use tolerated, Bash granted regardless of `execute`, the prompt-denial
+flag dropped, stderr not streamed, the audit comparing a tree with itself,
+the hook exiting 0 when unconfigured, and a shell command accepted as plain
+words.
+
+| Module                                       | Public surface                                                                                                                                                                                                                                                       |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/processes/command-runner.ts`            | `CommandRequest.signal` and `CommandRequest.onOutput`                                                                                                                                                                                                                |
+| `src/providers/claude/tool-gate.ts`          | `CLAUDE_GATE_ENVIRONMENT_VARIABLE`, `CLAUDE_TOOL_NAMES`, `claudeToolsFor`, `splitPlainCommand`, `projectRelativeClaudePath`, `toolActionOfClaudeToolUse`, `decideClaudeToolUse`, `appendClaudeGateRecord`, `readClaudeGateLog`, the config, input and record schemas |
+| `src/providers/claude/tool-gate-main.ts`     | the hook program; spawned, never imported                                                                                                                                                                                                                            |
+| `src/providers/claude/claude-stream.ts`      | `createLineSplitter`, `readClaudeStreamLine`                                                                                                                                                                                                                         |
+| `src/providers/claude/claude-cli-adapter.ts` | `createClaudeCliAdapter`, `buildClaudeCommand`, `buildClaudePrompt`, `claudeToolGateCommand`, `claudeRunFiles`, `quoteForPosixShell`, `CLAUDE_PRINT_FLAGS`, `DEFAULT_CLAUDE_MODELS`                                                                                  |
+| `src/providers/audited-run.ts`               | `recordAuditedAgentRun`, `auditIndexFile`                                                                                                                                                                                                                            |
+
+`SAILOR_ERROR_KINDS` gained `tool-gate-failed`, exit 5.
+`ENVIRONMENT_ALLOWLIST` gained `USER`. `AgentInvocation` gained `agentId`.
+`SAILOR_PATHS` gained `audit`. `PUBLIC_API` is 290 entries. `README.md`'s
+"The Claude adapter" section is the reference.
+
+### Decisions taken where the design was silent
+
+1. **The gate is a `PreToolUse` hook, not `--allowedTools` patterns.** Both
+   are documented. Translating write scopes and script names into the
+   CLI's own pattern language would have been a second implementation of
+   the policy that could drift from `evaluateToolAction`; the hook asks the
+   same function, in a process the CLI starts through `sh -c`. The one
+   shell string in the package is built from an argument vector by
+   `quoteForPosixShell`. The policy reaches the hook through one
+   environment variable, `SAILOR_CLAUDE_GATE`, which the agent cannot
+   reach: the policy refuses every write under `.sailor/` outside the
+   scratch directory, and `state/` is ignored, so the audit is not
+   involved either.
+2. **Everything is denied unless the gate allows it.** `--permission-prompts
+none` makes the CLI deny whatever would have prompted; the hook's `allow`
+   is what lets an edit or a command through, and its `deny` carries the
+   policy's reason to the agent. `--restricted` removes the tools that run
+   code unless `--tools` names them, so an agent with `execute: false`
+   never has `Bash` at all. It also ignores the user's settings files while
+   still applying `--settings`, which is what keeps a developer's hooks and
+   permissions out of a governed run; `CLAUDE.md` files are still read.
+3. **A tool use the gate did not decide fails the run.** A `tool_use` in
+   the transcript with no record in the decision log is
+   `tool-gate-failed`, thrown from the adapter: the session was configured
+   to consult the gate for every tool, and a CLI that did not is one whose
+   run the sailor cannot vouch for. The audit still happens for a run that
+   finishes; it does not happen for one that is refused, and the tree is
+   left for the runtime to deal with.
+4. **A Bash command is an argument vector or it is `sh -c`.** The tool's
+   `command` is a shell string. Words, single-quoted words and double-quoted
+   words with nothing the shell expands are split into the vector the
+   policy decides; anything else - a pipe, a redirection, `$`, a glob, a
+   comment - is recorded as `sh -c <command>`, which is literally what the
+   tool runs and which no policy grants.
+5. **Paths are canonical on both sides.** The first live run refused every
+   read: the throwaway root was `/var/folders/...`, the CLI reports
+   `/private/var/folders/...`, and compared as strings they are different
+   places. The gate now resolves symbolic links in the root and in the path
+   through the nearest existing ancestor, so a file about to be created
+   resolves too, and a link inside the project that points out of it is
+   seen for where it points.
+6. **`USER` is forwarded to every child.** The CLI keeps its login in the
+   macOS keychain and looks the entry up by account name; without `USER`
+   the CLI, run through `nodeCommandRunner` on a machine where it is logged
+   in, says "Not logged in". Measured: `LOGNAME` alone does not restore it,
+   `USER` alone does. It is the account name, not a secret.
+7. **Abort is honoured by the runner.** `CommandRequest.signal` terminates
+   the tree the way a timeout does and the result reports the signal, which
+   `finishedEventOf` turns into `aborted`. A signal already aborted stops
+   the command from starting at all. `onOutput` streams chunks as they
+   arrive, so the adapter reports the run live and the transcript file is
+   written as the CLI prints it.
+8. **The record is made from the log, positioned by the transcript.** A
+   `tool-action` is reported when the CLI prints the tool's result, which is
+   after the hook answered; decisions whose results the CLI never printed,
+   because it died first, are reported before `finished`. `rate_limit_event`
+   lines, which the CLI prints between turns and no reference documents,
+   are ignored like `system` messages.
+9. **Models are aliases, overridable.** `DEFAULT_CLAUDE_MODELS` maps the
+   three profiles to `opus`, `opus` and `sonnet`, the aliases `--help`
+   documents. `config/models.yaml` is still D5's.
+10. **`--bare` was rejected.** It would have kept `CLAUDE.md` out of the
+    prompt, but it restricts authentication to an API key, which a
+    developer's machine with an OAuth login does not have.
+
+### The live invocation
+
+Twice, by hand, from the built package against a throwaway git repository
+holding the shipped `coder.yaml`, a spec at `docs/specs/greeting.md` asking
+for `src/greeting.js`, a `node:test` test, a green `npm run test`, and a
+README example the coder's scopes do not cover. Model `opus` through the
+default mapping; `--max-budget-usd 3`.
+
+**First run** (92 s, 14 turns, USD 0.40). The gate refused the first two
+reads because the CLI reported `/private/var/...` paths against a
+`/var/...` root; the agent noticed ("Path resolution issue - let me try the
+non-`/private` form") and read its context and the spec with relative
+paths. Then, verbatim from the event log:
+
+```text
+[tool] execute ls -la /var/folders/.../sailor-claude-demo-pHfW2K -> denied (not-a-project-script): `ls -la ...` is not a project script run through `npm` (`build`, `format`, `lint`, `test`, `typecheck`)
+[tool] search {src,tests}/** -> allowed: searching the project is permitted
+[tool] read package.json -> allowed: reading `package.json` is permitted
+[tool] write src/greeting.js -> allowed: `src/greeting.js` is within the write scope `src/**`
+[tool] write tests/greeting.test.js -> allowed: `tests/greeting.test.js` is within the write scope `tests/**`
+[tool] execute npm run test -> allowed: `npm run test` runs the permitted project script `test`
+[tool] write .sailor/state/runs/demo-run/agents/coder/notes.md -> allowed: `...` is in this agent's scratch directory
+[finished] completed: exited with code 0 (92822ms)
+```
+
+The demo's own `test` script was broken (`node --test tests/`, trailing
+slash). The agent diagnosed it, did not touch `package.json` ("outside my
+write scope"), wrote the finding to its scratch directory, and closed with:
+"the new test has never been executed - treat it as unverified rather than
+passing. The implementation is small enough to check by eye, but I'm not
+claiming a green run I didn't get." Audit: `src/greeting.js` and
+`tests/greeting.test.js` changed, no violations. The CLI's own result line
+counted `permission_denials: 3`, the three the gate denied.
+
+**Second run** (55 s, USD not read, same shape), after decision 5 and with
+the script fixed:
+
+```text
+[tool] read .sailor/state/runs/demo-run/agents/coder/context.json -> allowed
+[tool] read docs/specs/greeting.md -> allowed
+[stdout] The spec asks for a README.md change, which is outside my write scope (`src/**`, `tests/**`). I'll do everything else and flag that at the end.
+[tool] execute ls -la /private/var/folders/.../sailor-claude-demo-2pBNQL -> denied (not-a-project-script)
+[tool] write src/greeting.js -> allowed
+[tool] write tests/greeting.test.js -> allowed
+[tool] execute npm run test -> allowed
+[tool] write tests/index.js -> allowed
+[tool] execute npm run test -> allowed
+[stdout] Tests pass (2/2), so the required `native-test` gate is green.
+[finished] completed: exited with code 0 (55129ms)
+```
+
+Audit: three paths changed, all in scope, clean; the repository's own index
+untouched. The README write was never attempted. The decision log and the
+transcript were on disk under
+`.sailor/state/runs/demo-run/claude/coder/attempt-1.*`.
+
+What the real stream taught that the references had not: `tool_input`
+shapes are `Read {file_path}`, `Glob {pattern}`, `Bash {command,
+description}`, `Write {file_path, content}`; `system` messages are
+numerous (39 in the first run, hook lifecycle among them);
+`rate_limit_event` exists; and a denied hook decision is counted by the CLI
+as a permission denial.
+
+### Open, after D3
+
+- **The rename.** See the top of this section. Nothing on this branch or on
+  `codex/milestone-d` builds on `main` until it is rebased.
+- **D4** stays unwritten: `codex` is still not installed.
+- **D5**: `config/models.yaml` and `config/providers.yaml`. The adapter
+  takes `models` and `claude` (the command) as options, which is where D5
+  plugs in; `doctor` should report a missing `claude` on `PATH`.
+- **D6**: the driver. `recordAuditedAgentRun` is the primitive; what
+  remains is minting run ids, writing contexts, recording transitions with
+  the audit's verdict, and deciding what a `tool-gate-failed` run does to
+  the task.
+- `AgentInvocation` carries no agent summary or display name, so the prompt
+  says "the `coder` agent" and nothing of what a coder is for. The
+  definition's `summary` should travel in the context; that touches C3.
+- Findings 2 to 7 from the Milestone C review are untouched.
+- `CLAUDE.md` files in a governed project reach the agent's prompt; the
+  only flags that stop it also stop the gate or the login.
+
+## Starting prompt for the next session
+
+> Continue Sailor in a worktree of `<PROJECTS>/sailor`. `codex/milestone-d`
+> and `codex/milestone-d3` predate the rename on `main`; rebase both onto
+> `main` (`.sailor` becomes `.sailor`, `src/sailor` becomes `src/sailor`,
+> `SAILOR_*` becomes `SAILOR_*`), keeping every commit's tree green, and
+> open the pull request so CI runs them for the first time. Read
+> `AGENTS.md`, `README.md`, `docs/handoff/milestone-d.md` and
+> `docs/handoff/milestone-d3.md` completely first. Do not start D5 or D6 in
+> the same session. Report any deviation directly.
