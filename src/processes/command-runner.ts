@@ -19,12 +19,26 @@ export interface CommandSpec {
   readonly args: readonly string[];
 }
 
+export type CommandOutputStream = "stdout" | "stderr";
+
 export interface CommandRequest {
   readonly command: CommandSpec;
   readonly cwd: string;
   /** Overrides merged over the runner's minimal base environment. */
   readonly env: Readonly<Record<string, string>> | null;
   readonly timeoutMs: number;
+  /**
+   * Aborting terminates the command the way a timeout does, and the result
+   * reports the signal that did it. A signal already aborted when the request
+   * is made stops the command from starting at all.
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * Called with each chunk as the command writes it, before capture. An agent
+   * run is minutes long and reports as it goes; a gate has no use for this.
+   * Chunks are raw bytes and may split a multi-byte character or a line.
+   */
+  readonly onOutput?: (stream: CommandOutputStream, chunk: Buffer) => void;
 }
 
 export interface CommandOutput {

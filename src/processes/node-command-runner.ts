@@ -41,6 +41,12 @@ const GIT_INDEX_VARIABLE = "GIT_INDEX_FILE";
  * credential that happens to live in the parent environment is never handed to
  * a gate command, which is a structural guarantee rather than a redaction pass
  * that has to anticipate every secret's name.
+ *
+ * `USER` is the account name and not a secret. It is here because the Claude
+ * CLI keeps its login in the macOS keychain and finds the entry by that name:
+ * without it the CLI, run through this runner with a valid login on the
+ * machine, reports "Not logged in". Measured, not assumed - `LOGNAME` alone
+ * does not restore it.
  */
 export const ENVIRONMENT_ALLOWLIST = [
   "CI",
@@ -52,6 +58,7 @@ export const ENVIRONMENT_ALLOWLIST = [
   "SHELL",
   "TERM",
   "TMPDIR",
+  "USER",
 ] as const;
 
 /**
@@ -183,6 +190,28 @@ export const createNodeCommandRunner =
     });
 
     return new Promise<CommandResult>((resolve) => {
+      if (request.signal?.aborted === true) {
+        // Nothing was started, so there is no process to describe: the
+        // caller's own abort is the whole story, and `ABORT_ERR` is the code
+        // Node itself gives an operation cancelled through an `AbortSignal`.
+        const error: NodeJS.ErrnoException = new Error(
+          "aborted before the command was started"
+        );
+
+        error.code = "ABORT_ERR";
+        resolve(
+          toSpawnFailure({
+            command: request.command,
+            output: output(),
+            startedAt,
+            durationMs: 0,
+            error,
+          })
+        );
+
+        return;
+      }
+
       // The annotated tuple selects the overload where stdout and stderr are
       // non-nullable, removing a null check that no test could ever reach.
       const spawnOptions: SpawnOptionsWithStdioTuple<
@@ -221,17 +250,38 @@ export const createNodeCommandRunner =
         });
       };
 
-      const killTimer = setTimeout(() => {
-        timedOut = true;
+      /**
+       * The termination sequence a timeout and an abort share: the configured
+       * signal to the whole tree, then SIGKILL after the grace period for a
+       * tree that ignored it.
+       */
+      const terminate = (): void => {
         killTree(options.killSignal);
         graceTimer = setTimeout(() => {
           forceKilled = true;
           killTree("SIGKILL");
         }, options.killGraceMs);
         graceTimer.unref();
+      };
+
+      const killTimer = setTimeout(() => {
+        timedOut = true;
+        terminate();
       }, request.timeoutMs);
 
       killTimer.unref();
+
+      // An abort is reported as the signal it sent rather than as a timeout:
+      // the child did die by that signal, and the caller who aborted knows it
+      // did. Only the first of the two to fire terminates anything.
+      const onAbort = (): void => {
+        if (!settled && !timedOut) {
+          clearTimeout(killTimer);
+          terminate();
+        }
+      };
+
+      request.signal?.addEventListener("abort", onAbort, { once: true });
 
       // Node emits `error` and then `close` for a failed spawn, so resolution
       // is guarded rather than racing.
@@ -243,13 +293,16 @@ export const createNodeCommandRunner =
         settled = true;
         clearTimeout(killTimer);
         clearTimeout(graceTimer);
+        request.signal?.removeEventListener("abort", onAbort);
         resolve(build(options.now().getTime() - startedAtDate.getTime()));
       };
 
       child.stdout.on("data", (chunk: Buffer) => {
+        request.onOutput?.("stdout", chunk);
         stdout.push(chunk);
       });
       child.stderr.on("data", (chunk: Buffer) => {
+        request.onOutput?.("stderr", chunk);
         stderr.push(chunk);
       });
 

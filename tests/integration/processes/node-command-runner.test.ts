@@ -297,6 +297,15 @@ describe("buildChildEnvironment", () => {
     expect(environment).toEqual({ PATH: "/usr/bin", HOME: "/home/x" });
   });
 
+  it("forwards the account name, which the Claude CLI's keychain login is found by", () => {
+    // Without `USER` a `claude` run through this runner reports "Not logged
+    // in" on a machine where it is logged in: the macOS keychain entry is
+    // looked up by account. `LOGNAME` was measured not to be enough.
+    expect(
+      buildChildEnvironment({ USER: "alice", LOGNAME: "alice" }, null)
+    ).toEqual({ USER: "alice" });
+  });
+
   it("forwards the index a partial commit is being built from", () => {
     // Without it a gate answers a different question than the commit being
     // made: `git commit -- <path>` builds a temporary index and names it here,
@@ -383,5 +392,137 @@ describe("killProcessTree", () => {
     killProcessTree(0x3ffffffe, "SIGTERM", fallback);
 
     expect(fallback).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("streaming and aborting", () => {
+  it("hands each chunk to the caller as it arrives, on the stream it came from", async () => {
+    const seen: [string, string][] = [];
+    const result = await run({
+      command: nodeScript(
+        "process.stdout.write('one');process.stderr.write('two');setTimeout(() => process.stdout.write('three'), 50)"
+      ),
+      onOutput: (stream, chunk) => {
+        seen.push([stream, chunk.toString("utf8")]);
+      },
+    });
+
+    expect(result).toMatchObject({ outcome: "exited", exitCode: 0 });
+    expect(
+      seen
+        .filter(([stream]) => stream === "stdout")
+        .map(([, t]) => t)
+        .join("")
+    ).toBe("onethree");
+    expect(
+      seen
+        .filter(([stream]) => stream === "stderr")
+        .map(([, t]) => t)
+        .join("")
+    ).toBe("two");
+    // Streaming is in addition to capture, not instead of it.
+    expect(result.output.stdout).toBe("onethree");
+    expect(result.output.stderr).toBe("two");
+  });
+
+  it("keeps streaming past the capture cap, which only bounds the copy it keeps", async () => {
+    const limited = createNodeCommandRunner({
+      ...NODE_COMMAND_RUNNER_DEFAULTS,
+      maxOutputBytes: 8,
+    });
+    let streamed = "";
+
+    const result = await limited({
+      command: nodeScript("process.stdout.write('x'.repeat(1000))"),
+      cwd: process.cwd(),
+      env: null,
+      timeoutMs: 10_000,
+      onOutput: (_stream, chunk) => {
+        streamed += chunk.toString("utf8");
+      },
+    });
+
+    expect(streamed).toBe("x".repeat(1000));
+    expect(result.output.stdout).toBe("x".repeat(8));
+    expect(result.output.truncated).toBe(true);
+  });
+
+  it("terminates a command when its signal aborts, and reports the signal that did it", async () => {
+    const controller = new AbortController();
+    const started = Date.now();
+
+    setTimeout(() => {
+      controller.abort();
+    }, 150);
+
+    const result = await run({
+      command: nodeScript("setTimeout(() => {}, 5000)"),
+      timeoutMs: 10_000,
+      signal: controller.signal,
+    });
+
+    expect(result).toMatchObject({ outcome: "signaled", signal: "SIGTERM" });
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("escalates to SIGKILL when an aborted command ignores the first signal", async () => {
+    const controller = new AbortController();
+
+    setTimeout(() => {
+      controller.abort();
+    }, 100);
+
+    const result = await run({
+      command: nodeScript(
+        "process.on('SIGTERM', () => {});setInterval(() => {}, 1000)"
+      ),
+      timeoutMs: 10_000,
+      signal: controller.signal,
+    });
+
+    expect(result).toMatchObject({ outcome: "signaled", signal: "SIGKILL" });
+  });
+
+  it("does not start a command whose signal has already been aborted", async () => {
+    const directory = createTempDirectory("sailor-abort-");
+    const controller = new AbortController();
+
+    controller.abort();
+
+    const result = await run({
+      command: nodeScript("require('fs').writeFileSync('started', '')"),
+      cwd: directory,
+      signal: controller.signal,
+    });
+
+    expect(result).toMatchObject({
+      outcome: "spawn-failed",
+      errorCode: "ABORT_ERR",
+    });
+    expect(result.durationMs).toBe(0);
+    expect(existsSync(join(directory, "started"))).toBe(false);
+  });
+
+  it("leaves a finished command's result alone when the signal aborts afterwards", async () => {
+    const controller = new AbortController();
+    const result = await run({
+      command: nodeScript("process.stdout.write('done')"),
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    expect(result).toMatchObject({ outcome: "exited", exitCode: 0 });
+    expect(result.output.stdout).toBe("done");
+  });
+
+  it("still reports a timeout as a timeout when the signal is never aborted", async () => {
+    const result = await run({
+      command: nodeScript("setTimeout(() => {}, 5000)"),
+      timeoutMs: 150,
+      signal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({ outcome: "timed-out", timeoutMs: 150 });
   });
 });
