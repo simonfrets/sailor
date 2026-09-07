@@ -43,6 +43,7 @@ describe("SailorError", () => {
       "notification-failed",
       "stale-task-revision",
       "task-lock-failed",
+      "tool-gate-failed",
       "unknown-task",
       "unsafe-hook-chain",
       "unsafe-overwrite",

@@ -2,14 +2,22 @@ import { posix } from "node:path";
 
 import { z } from "zod";
 
+import { agentToolsSchema } from "../agents/agent-definition.js";
 import type { AgentTools } from "../agents/agent-definition.js";
 import { buildPackageManagerCommand } from "../gates/resolve-project-script.js";
 import { SAILOR_DIRECTORY } from "../sailor/layout.js";
-import { projectRelativePathSchema } from "../sailor/project-path.js";
+import {
+  projectRelativeGlobSchema,
+  projectRelativePathSchema,
+} from "../sailor/project-path.js";
 import { describeCommand } from "../processes/command-runner.js";
 import type { CommandSpec } from "../processes/command-runner.js";
+import { packageManagerSchema } from "../project/project-profile-schema.js";
 import type { PackageManager } from "../project/project-profile-schema.js";
-import { PROJECT_SCRIPT_NAMES } from "../rules/rule-schema.js";
+import {
+  PROJECT_SCRIPT_NAMES,
+  projectScriptNameSchema,
+} from "../rules/rule-schema.js";
 import type { ProjectScriptName } from "../rules/rule-schema.js";
 import {
   AGENT_CONTEXT_FILE,
@@ -100,6 +108,20 @@ export interface ToolPolicy {
   readonly contextDirectory: string;
   readonly packageManager: PackageManager;
 }
+
+/**
+ * The same policy as data, for the one place it crosses a process boundary:
+ * a provider's hook runs in a process of its own and is handed the policy
+ * serialised, and a policy that arrives damaged must be refused rather than
+ * enforced as whatever it parsed to.
+ */
+export const toolPolicySchema = z.strictObject({
+  tools: agentToolsSchema,
+  writeScopes: z.array(projectRelativeGlobSchema).readonly(),
+  projectScripts: z.array(projectScriptNameSchema).readonly(),
+  contextDirectory: projectRelativePathSchema,
+  packageManager: packageManagerSchema,
+}) satisfies z.ZodType<ToolPolicy>;
 
 /**
  * The policy an agent runs under is the one its context recorded.

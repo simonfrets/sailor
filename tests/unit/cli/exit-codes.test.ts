@@ -93,6 +93,15 @@ describe("CLI exit codes", () => {
     );
   });
 
+  it("refuses a run whose tool calls the gate did not see", () => {
+    // A tool call the hook never decided is a call the sailor cannot vouch
+    // for. The audit still catches a write, but a command or a read it did
+    // not see is exactly what the gate exists to see, so the run is refused.
+    expect(exitCodeForSailorError("tool-gate-failed")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
+
   it("refuses a handoff whose working tree could not be audited", () => {
     // Git failing to hash or compare the tree leaves the sailor unable to say
     // whether the agent stayed in scope. Accepting the work anyway would be

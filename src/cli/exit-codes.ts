@@ -36,6 +36,7 @@ export const exitCodeForSailorError = (kind: SailorErrorKind): number => {
     case "notification-failed":
     case "stale-task-revision":
     case "task-lock-failed":
+    case "tool-gate-failed":
     case "unsafe-hook-chain":
     case "unsafe-overwrite":
     case "working-tree-audit-failed":
