@@ -9,9 +9,9 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
-import { installHarness } from "../../../src/install/install-harness.js";
-import type { InstallHarnessResult } from "../../../src/install/install-harness.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
+import { installSailor } from "../../../src/install/install-sailor.js";
+import type { InstallSailorResult } from "../../../src/install/install-sailor.js";
 import { readInstallManifest } from "../../../src/install/install-manifest.js";
 import { nodeCommandRunner } from "../../../src/processes/node-command-runner.js";
 import { captureRejection } from "../../helpers/expect-error.js";
@@ -57,7 +57,7 @@ const recordingHook = (marker: string, exitCode = 0): string =>
   ].join("\n");
 
 const buildRepository = (): string => {
-  const root = createTempDirectory("agentic-harness-hooks-");
+  const root = createTempDirectory("sailor-hooks-");
 
   initRepository(root);
   write(root, "package.json", '{ "name": "host", "version": "1.0.0" }\n');
@@ -68,8 +68,8 @@ const buildRepository = (): string => {
 const install = async (
   root: string,
   cwd = root
-): Promise<InstallHarnessResult> =>
-  installHarness({
+): Promise<InstallSailorResult> =>
+  installSailor({
     cwd,
     packageRootDirectory: packageRoot,
     runner: nodeCommandRunner,
@@ -85,11 +85,11 @@ const install = async (
 const fakeRuntime = (root: string): void => {
   write(
     root,
-    ".harness/node_modules/agentic-harness/dist/cli/index.js",
+    ".sailor/node_modules/sailor/dist/cli/index.js",
     [
       "const args = process.argv.slice(2).join(' ');",
-      "process.stdout.write(`harness ${args}\\n`);",
-      "process.exitCode = Number(process.env.HARNESS_FAKE_EXIT ?? 0);",
+      "process.stdout.write(`sailor ${args}\\n`);",
+      "process.exitCode = Number(process.env.SAILOR_FAKE_EXIT ?? 0);",
       "",
     ].join("\n")
   );
@@ -106,7 +106,7 @@ const runHook = (
 ): SpawnSyncReturns<string> =>
   spawnSync(
     "bash",
-    [join(root, ".harness", "hooks", hook), ...(options.args ?? [])],
+    [join(root, ".sailor", "hooks", hook), ...(options.args ?? [])],
     {
       cwd: root,
       encoding: "utf8",
@@ -114,7 +114,7 @@ const runHook = (
       env: cleanEnvironment(
         options.exitCode === undefined
           ? {}
-          : { HARNESS_FAKE_EXIT: options.exitCode }
+          : { SAILOR_FAKE_EXIT: options.exitCode }
       ),
     }
   );
@@ -131,13 +131,13 @@ const hooksPathOf = (root: string): string =>
   git(root, ["config", "--local", "--get", "core.hooksPath"]).stdout.trim();
 
 describe("hook dispatch with no prior hook", () => {
-  it("points git at the harness with a relative path", async () => {
+  it("points git at the sailor with a relative path", async () => {
     const root = buildRepository();
     const result = await install(root);
 
     // Relative, because git resolves it against the working tree it is run
     // in, which is the only value that is correct in every worktree.
-    expect(hooksPathOf(root)).toBe(".harness/hooks");
+    expect(hooksPathOf(root)).toBe(".sailor/hooks");
     expect(result.gitHooksPathChanged).toBe(true);
     expect(result.previousHooksPath).toBeNull();
     expect(result.hooks).toEqual([
@@ -154,11 +154,11 @@ describe("hook dispatch with no prior hook", () => {
 
     expect(runHook(root, "pre-commit")).toMatchObject({
       status: 0,
-      stdout: "harness gate pre-commit\n",
+      stdout: "sailor gate pre-commit\n",
     });
     expect(runHook(root, "pre-push")).toMatchObject({
       status: 0,
-      stdout: "harness gate pre-push\n",
+      stdout: "sailor gate pre-push\n",
     });
   });
 
@@ -170,16 +170,16 @@ describe("hook dispatch with no prior hook", () => {
     git(root, ["add", "."]);
 
     const blocked = git(root, ["commit", "-m", "blocked"], {
-      HARNESS_FAKE_EXIT: "4",
+      SAILOR_FAKE_EXIT: "4",
     });
 
     expect(blocked.status).not.toBe(0);
     expect(`${blocked.stdout}${blocked.stderr}`).toContain(
-      "harness gate pre-commit"
+      "sailor gate pre-commit"
     );
 
     const allowed = git(root, ["commit", "-m", "allowed"], {
-      HARNESS_FAKE_EXIT: "0",
+      SAILOR_FAKE_EXIT: "0",
     });
 
     expect(allowed.status).toBe(0);
@@ -193,7 +193,7 @@ describe("hook dispatch with no prior hook", () => {
     const result = runHook(root, "pre-commit");
 
     expect(result.status).toBe(3);
-    expect(result.stderr).toContain("the harness runtime is not installed");
+    expect(result.stderr).toContain("the sailor runtime is not installed");
   });
 });
 
@@ -211,9 +211,7 @@ describe("hook dispatch over an existing hook", () => {
       hook: "pre-commit",
       chained: ".git/hooks/pre-commit",
     });
-    expect(runHook(root, "pre-commit").stdout).toBe(
-      "harness gate pre-commit\n"
-    );
+    expect(runHook(root, "pre-commit").stdout).toBe("sailor gate pre-commit\n");
     expect(ranLog(root)).toContain("project");
   });
 
@@ -238,7 +236,7 @@ describe("hook dispatch over an existing hook", () => {
 
   it("chains a hook behind an absolute core.hooksPath", async () => {
     const root = buildRepository();
-    const elsewhere = createTempDirectory("agentic-harness-external-hooks-");
+    const elsewhere = createTempDirectory("sailor-external-hooks-");
 
     writeFileSync(
       join(elsewhere, "pre-commit"),
@@ -265,7 +263,7 @@ describe("hook dispatch over an existing hook", () => {
     // the generated text, so gutting the absolute branch left it green.
     expect(runHook(root, "pre-commit")).toMatchObject({
       status: 0,
-      stdout: "harness gate pre-commit\n",
+      stdout: "sailor gate pre-commit\n",
     });
     expect(ranLog(root)).toContain("external");
   });
@@ -296,7 +294,7 @@ describe("hook dispatch over an existing hook", () => {
     expect(runHook(root, "pre-commit", { exitCode: "4" }).status).toBe(4);
   });
 
-  it("keeps running a hook the harness has no gate for", async () => {
+  it("keeps running a hook the sailor has no gate for", async () => {
     const root = buildRepository();
 
     write(root, ".git/hooks/commit-msg", recordingHook("commit-msg"), 0o755);
@@ -365,7 +363,7 @@ describe("hook dispatch over an existing hook", () => {
     write(root, ".git/hooks/pre-commit", recordingHook("project"), 0o755);
     write(
       root,
-      ".harness/config/hooks.yaml",
+      ".sailor/config/hooks.yaml",
       "version: 1\nonExistingHook: abort\nhooks: []\n"
     );
 
@@ -381,7 +379,7 @@ describe("hook dispatch over an existing hook", () => {
 
     await install(root);
     writeFileSync(
-      join(root, ".harness", "config", "hooks.yaml"),
+      join(root, ".sailor", "config", "hooks.yaml"),
       [
         "version: 1",
         "hooks:",
@@ -402,7 +400,7 @@ describe("hook dispatch over an existing hook", () => {
     // and the manifest would no longer have an entry explaining why.
     expect(result.removed).toEqual(["hooks/pre-commit"]);
     expect(result.orphaned).toEqual([]);
-    expect(existsSync(join(root, ".harness", "hooks", "pre-commit"))).toBe(
+    expect(existsSync(join(root, ".sailor", "hooks", "pre-commit"))).toBe(
       false
     );
   });
@@ -412,11 +410,11 @@ describe("hook dispatch over an existing hook", () => {
 
     await install(root);
     writeFileSync(
-      join(root, ".harness", "hooks", "pre-commit"),
+      join(root, ".sailor", "hooks", "pre-commit"),
       "#!/usr/bin/env bash\n# edited by the project\nexit 0\n"
     );
     writeFileSync(
-      join(root, ".harness", "config", "hooks.yaml"),
+      join(root, ".sailor", "config", "hooks.yaml"),
       "version: 1\nhooks: []\n"
     );
 
@@ -425,10 +423,10 @@ describe("hook dispatch over an existing hook", () => {
     // pre-push was untouched and goes; pre-commit carries the project's edit
     // and stays, reported rather than deleted.
     expect(result.removed).toEqual(["hooks/pre-push"]);
-    expect(result.kept).toContain("bin/harness");
+    expect(result.kept).toContain("bin/sailor");
     expect(result.orphaned).toEqual(["hooks/pre-commit"]);
     expect(
-      readFileSync(join(root, ".harness", "hooks", "pre-commit"), "utf8")
+      readFileSync(join(root, ".sailor", "hooks", "pre-commit"), "utf8")
     ).toContain("edited by the project");
   });
 
@@ -438,7 +436,7 @@ describe("hook dispatch over an existing hook", () => {
     await install(root);
     fakeRuntime(root);
     writeFileSync(
-      join(root, ".harness", "config", "hooks.yaml"),
+      join(root, ".sailor", "config", "hooks.yaml"),
       [
         "version: 1",
         "hooks:",
@@ -455,7 +453,7 @@ describe("hook dispatch over an existing hook", () => {
     // The gate is rigged to fail; the commit must succeed anyway, because the
     // pre-commit dispatcher should no longer exist to run it.
     expect(
-      git(root, ["commit", "-m", "no gate"], { HARNESS_FAKE_EXIT: "4" }).status
+      git(root, ["commit", "-m", "no gate"], { SAILOR_FAKE_EXIT: "4" }).status
     ).toBe(0);
   });
 
@@ -464,11 +462,11 @@ describe("hook dispatch over an existing hook", () => {
 
     await install(root);
     writeFileSync(
-      join(root, ".harness", "config", "hooks.yaml"),
+      join(root, ".sailor", "config", "hooks.yaml"),
       "version: 1\nhooks: not-a-list\n"
     );
 
-    const error = await captureRejection(() => install(root), HarnessError);
+    const error = await captureRejection(() => install(root), SailorError);
 
     expect(error.kind).toBe("invalid-config");
     expect(error.message).toContain("config/hooks.yaml");
@@ -482,7 +480,7 @@ describe("hook dispatch in a linked worktree", () => {
     git(main, ["add", "."]);
     git(main, ["commit", "--quiet", "-m", "initial"]);
 
-    const worktree = join(createTempDirectory("agentic-harness-linked-"), "wt");
+    const worktree = join(createTempDirectory("sailor-linked-"), "wt");
 
     git(main, ["worktree", "add", "--quiet", worktree, "-b", "feature"]);
 
@@ -494,11 +492,11 @@ describe("hook dispatch in a linked worktree", () => {
     // core.hooksPath is repository-local and therefore shared with the main
     // checkout, which is exactly why the value is relative: each worktree
     // resolves it against its own root.
-    expect(hooksPathOf(worktree)).toBe(".harness/hooks");
-    expect(hooksPathOf(main)).toBe(".harness/hooks");
+    expect(hooksPathOf(worktree)).toBe(".sailor/hooks");
+    expect(hooksPathOf(main)).toBe(".sailor/hooks");
     expect(runHook(worktree, "pre-commit")).toMatchObject({
       status: 0,
-      stdout: "harness gate pre-commit\n",
+      stdout: "sailor gate pre-commit\n",
     });
   });
 
@@ -509,7 +507,7 @@ describe("hook dispatch in a linked worktree", () => {
     git(main, ["add", "."]);
     git(main, ["commit", "--quiet", "-m", "initial"]);
 
-    const worktree = join(createTempDirectory("agentic-harness-linked-"), "wt");
+    const worktree = join(createTempDirectory("sailor-linked-"), "wt");
 
     git(main, ["worktree", "add", "--quiet", worktree, "-b", "feature"]);
 

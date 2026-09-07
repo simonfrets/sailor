@@ -5,7 +5,7 @@ compromises directly.
 
 ## Working rules
 
-- Keep the installed harness isolated under the target project's `.harness/`
+- Keep the installed sailor isolated under the target project's `.sailor/`
   directory.
 - Treat agent definitions, task state, context, rules, and provider adapters as
   separate modules with explicit contracts.

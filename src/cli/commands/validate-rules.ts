@@ -1,5 +1,5 @@
-import { loadHarnessRuleSet } from "../../harness/load-harness-rule-set.js";
-import { resolveProjectRoot } from "../../harness/resolve-project-root.js";
+import { loadSailorRuleSet } from "../../sailor/load-sailor-rule-set.js";
+import { resolveProjectRoot } from "../../sailor/resolve-project-root.js";
 import { CLI_EXIT_CODES } from "../exit-codes.js";
 import { formatRuleSetSummary } from "../format-rule-set.js";
 import type { CliCommandHandler } from "../run-cli.js";
@@ -15,7 +15,7 @@ export const validateRules: CliCommandHandler = async (context) => {
   });
 
   context.streams.stdout.write(
-    formatRuleSetSummary(loadHarnessRuleSet({ projectRoot }))
+    formatRuleSetSummary(loadSailorRuleSet({ projectRoot }))
   );
 
   return CLI_EXIT_CODES.ok;

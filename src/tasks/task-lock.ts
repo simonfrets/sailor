@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { lock } from "proper-lockfile";
 
-import { HarnessError, describeFailure } from "../harness/harness-error.js";
-import { HARNESS_DIRECTORY } from "../harness/layout.js";
+import { SailorError, describeFailure } from "../sailor/sailor-error.js";
+import { SAILOR_DIRECTORY } from "../sailor/layout.js";
 import { TASK_FILE_SOURCE, taskFilePath } from "./task-file.js";
 
 export interface TaskLockOptions {
@@ -21,7 +21,7 @@ export interface TaskLockOptions {
 
 /**
  * The shortest stale window `proper-lockfile` implements. It raises anything
- * below this to it, so this is the floor of what the harness can ask for.
+ * below this to it, so this is the floor of what the sailor can ask for.
  */
 const STALE_FLOOR_MS = 2_000;
 
@@ -33,7 +33,7 @@ const RETRY_FACTOR = 1.5;
  *
  * It is the one failure of acquisition that means what the operator can act on
  * by waiting. Everything else the call can fail with - `EACCES` on a directory
- * the process cannot write, `ENOSPC`, `ENOTDIR` where `.harness` is not a
+ * the process cannot write, `ENOSPC`, `ENOTDIR` where `.sailor` is not a
  * directory at all - comes from the filesystem and is answered by fixing the
  * filesystem.
  */
@@ -59,7 +59,7 @@ export const taskLockStaleMs = (options: TaskLockOptions): number =>
  * computed rather than described: a lock abandoned by a process that was
  * killed is honoured until it goes stale, so a budget that runs out first
  * turns every attempt in between into `ELOCKED` - a hard failure reporting
- * contention that nothing is causing. `harness gate pre-commit` exits non-zero
+ * contention that nothing is causing. `sailor gate pre-commit` exits non-zero
  * on it, so a crash would block commits until the window passed.
  *
  * It mirrors the schedule `retry` computes from the options passed below,
@@ -104,8 +104,8 @@ export const TASK_LOCK_DEFAULTS: TaskLockOptions = {
  * fails. The design says to prefer a reviewed library over a partial protocol,
  * and this is the protocol it meant.
  *
- * A lock is needed at all because two harness processes genuinely overlap: a
- * git hook runs `harness gate pre-commit` while an agent runtime is recording
+ * A lock is needed at all because two sailor processes genuinely overlap: a
+ * git hook runs `sailor gate pre-commit` while an agent runtime is recording
  * the transition that produced the commit. Both do read-modify-write on one
  * file, so without a lock the later writer silently discards the earlier one's
  * revision.
@@ -115,12 +115,12 @@ export const TASK_LOCK_DEFAULTS: TaskLockOptions = {
  * records the failure, so the caller's work finishes and then the loss of the
  * lock is reported as an error it can act on.
  *
- * A project with no harness in it is refused rather than given one. `tasks.yaml`
- * is not installed by `harness init`, so on the first transition it does not
+ * A project with no sailor in it is refused rather than given one. `tasks.yaml`
+ * is not installed by `sailor init`, so on the first transition it does not
  * exist and the lock has nowhere to live but the directory beside it - but that
- * directory is `.harness` itself, which `harness init` does install. Creating it
- * here would mean any task call against any path left a `.harness` behind in a
- * project that never asked for one, and the harness would be neither installed
+ * directory is `.sailor` itself, which `sailor init` does install. Creating it
+ * here would mean any task call against any path left a `.sailor` behind in a
+ * project that never asked for one, and the sailor would be neither installed
  * nor absent but half of each: a directory holding task state and no agents,
  * rules or hooks to act on it.
  */
@@ -132,9 +132,9 @@ export const withTaskLock = async <T>(
   const path = taskFilePath(projectRoot);
 
   if (!existsSync(dirname(path))) {
-    throw new HarnessError(
+    throw new SailorError(
       "not-installed",
-      `${HARNESS_DIRECTORY} is not installed in this project, so there is nowhere to record a task; run \`harness init\``
+      `${SAILOR_DIRECTORY} is not installed in this project, so there is nowhere to record a task; run \`sailor init\``
     );
   }
 
@@ -165,7 +165,7 @@ export const withTaskLock = async <T>(
     // contention whatever had happened, so the first line an operator read was
     // wrong for every cause but one - and the one it named is the only cause
     // that resolves itself.
-    throw new HarnessError(
+    throw new SailorError(
       "task-lock-failed",
       failureCode(error) === CONTENTION_CODE
         ? `another process is holding the lock on ${TASK_FILE_SOURCE}`
@@ -191,9 +191,9 @@ export const withTaskLock = async <T>(
   const [compromised] = compromises;
 
   if (compromised !== undefined) {
-    throw new HarnessError(
+    throw new SailorError(
       "task-lock-failed",
-      `the lock on ${TASK_FILE_SOURCE} was lost while the harness held it, so the write cannot be trusted`,
+      `the lock on ${TASK_FILE_SOURCE} was lost while the sailor held it, so the write cannot be trusted`,
       [compromised.message]
     );
   }

@@ -1,6 +1,6 @@
 import { doctor } from "./commands/doctor.js";
 import { explainRules } from "./commands/explain-rules.js";
-import { initHarness } from "./commands/init.js";
+import { initSailor } from "./commands/init.js";
 import { runGate } from "./commands/run-gate.js";
 import { validateRules } from "./commands/validate-rules.js";
 import type { CliCommandRegistry } from "./run-cli.js";
@@ -15,7 +15,7 @@ import type { CliCommandRegistry } from "./run-cli.js";
 export const createDefaultCliCommands = (): CliCommandRegistry => ({
   doctor,
   gate: runGate,
-  init: initHarness,
+  init: initSailor,
   "rules explain": explainRules,
   "rules validate": validateRules,
 });

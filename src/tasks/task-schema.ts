@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { agentIdSchema } from "../agents/agent-id.js";
 import type { BuiltInAgentId } from "../agents/agent-id.js";
-import { projectRelativePathSchema } from "../harness/project-path.js";
+import { projectRelativePathSchema } from "../sailor/project-path.js";
 
 /**
  * The pipeline states, in the order the workflow runs them.
@@ -81,7 +81,7 @@ const activeStateSchema = z.enum(ACTIVE_STATES);
  * the agent recorded against the state. Record the wrong one and the stage
  * runs under another agent's rights - `implementing` under QA's `edit: false`
  * and no write scope, or `qa` with the coder's - and nothing would say so,
- * because both are agents the harness ships and both records validate.
+ * because both are agents the sailor ships and both records validate.
  *
  * Five states name their owner outright. `specified` is the specifier's: it is
  * the stage whose work is the specification. The other four own nobody, and
@@ -129,7 +129,7 @@ export const taskIdSchema = z
 
 /**
  * A run id is a path segment: contexts live under
- * `.harness/state/runs/<run-id>/`. Restricting it to the same shape as a task
+ * `.sailor/state/runs/<run-id>/`. Restricting it to the same shape as a task
  * id is what stops a caller-supplied id from escaping that directory, and a
  * lower-cased `randomUUID()` already satisfies it.
  */

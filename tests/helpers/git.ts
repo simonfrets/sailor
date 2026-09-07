@@ -42,9 +42,9 @@ export const cleanEnvironment = (
  */
 const IDENTITY = [
   "-c",
-  "user.name=Harness Test",
+  "user.name=Sailor Test",
   "-c",
-  "user.email=harness@example.invalid",
+  "user.email=sailor@example.invalid",
 ] as const;
 
 /** Runs git against a fixture, never against the repository under test. */

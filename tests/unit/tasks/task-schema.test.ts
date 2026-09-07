@@ -40,8 +40,8 @@ describe("transitionRecordSchema", () => {
   it("accepts a fully recorded transition", () => {
     const record = buildTransition({
       gateReportIds: ["report-1"],
-      artifactPaths: [".harness/state/runs/run-1/agents/coder/report.json"],
-      contextPath: ".harness/state/runs/run-1/agents/cleaner",
+      artifactPaths: [".sailor/state/runs/run-1/agents/coder/report.json"],
+      contextPath: ".sailor/state/runs/run-1/agents/cleaner",
     });
 
     expect(transitionRecordSchema.parse(record)).toEqual(record);
@@ -67,7 +67,7 @@ describe("transitionRecordSchema", () => {
   it("refuses an absolute path, which would name the machine that wrote it", () => {
     expect(
       transitionRecordSchema.safeParse(
-        buildTransition({ contextPath: "/Users/someone/project/.harness" })
+        buildTransition({ contextPath: "/Users/someone/project/.sailor" })
       ).success
     ).toBe(false);
     expect(
@@ -80,7 +80,7 @@ describe("transitionRecordSchema", () => {
   it("refuses a path that escapes the project root", () => {
     expect(
       transitionRecordSchema.safeParse(
-        buildTransition({ contextPath: ".harness/state/../../elsewhere" })
+        buildTransition({ contextPath: ".sailor/state/../../elsewhere" })
       ).success
     ).toBe(false);
   });
@@ -113,7 +113,7 @@ describe("taskSchema", () => {
   });
 
   it("refuses a run id that is not a single safe path segment", () => {
-    // A run id becomes a directory name under `.harness/state/runs/`.
+    // A run id becomes a directory name under `.sailor/state/runs/`.
     for (const runId of ["../escape", "run/1", "Run-1", ""]) {
       expect(taskSchema.safeParse(buildTask({ runId })).success).toBe(false);
     }

@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { loadAgentDefinition } from "../../src/agents/agent-definition.js";
 import type { AgentDefinition } from "../../src/agents/agent-definition.js";
 import type { BuiltInAgentId } from "../../src/agents/agent-id.js";
-import { loadHarnessRuleSet } from "../../src/harness/load-harness-rule-set.js";
+import { loadSailorRuleSet } from "../../src/sailor/load-sailor-rule-set.js";
 import {
-  listHarnessTemplateFiles,
-  readHarnessTemplateFile,
-} from "../../src/install/harness-templates.js";
+  listSailorTemplateFiles,
+  readSailorTemplateFile,
+} from "../../src/install/sailor-templates.js";
 import { compileAgentPolicy } from "../../src/prompts/compile-agent-policy.js";
 import {
   AGENT_CONTEXT_FILE,
@@ -38,7 +38,7 @@ import {
   currentStage,
   pendingStages,
 } from "../../src/tasks/workflow.js";
-import { buildHarnessProject } from "./harness-project.js";
+import { buildSailorProject } from "./sailor-project.js";
 
 export const TASK_ID = "add-login";
 export const TASK_TITLE = "Add login";
@@ -83,16 +83,16 @@ export const STAGE_AGENTS = {
   completed: null,
 } as const satisfies Record<WorkflowState, BuiltInAgentId | null>;
 
-/** The six definitions the harness actually ships, not test doubles. */
+/** The six definitions the sailor actually ships, not test doubles. */
 export const shippedAgentDefinitions = (
   packageRoot: string
 ): ReadonlyMap<string, AgentDefinition> =>
   new Map(
-    listHarnessTemplateFiles(packageRoot)
+    listSailorTemplateFiles(packageRoot)
       .filter((file) => /^agents\/[^/]+\.yaml$/.test(file.installedPath))
       .map((file) => {
         const definition = loadAgentDefinition(
-          readHarnessTemplateFile(packageRoot, file.templatePath),
+          readSailorTemplateFile(packageRoot, file.templatePath),
           { source: file.installedPath }
         );
 
@@ -105,13 +105,13 @@ export const shippedAgentDefinitions = (
  * real one rather than one written to suit the assertion about it.
  */
 export const buildWorkflowProject = (packageRoot: string): string =>
-  buildHarnessProject({
+  buildSailorProject({
     rules: Object.fromEntries(
-      listHarnessTemplateFiles(packageRoot)
+      listSailorTemplateFiles(packageRoot)
         .filter((file) => /^rules\/[^/]+\.yaml$/.test(file.installedPath))
         .map((file) => [
           file.installedPath.slice("rules/".length),
-          readHarnessTemplateFile(packageRoot, file.templatePath),
+          readSailorTemplateFile(packageRoot, file.templatePath),
         ])
     ),
   });
@@ -205,7 +205,7 @@ const handOff = async (
   definitions: ReadonlyMap<string, AgentDefinition>,
   to: WorkflowState
 ): Promise<void> => {
-  const ruleSet = loadHarnessRuleSet({ projectRoot: request.projectRoot });
+  const ruleSet = loadSailorRuleSet({ projectRoot: request.projectRoot });
 
   await updateTaskFile(request.projectRoot, (file) => {
     const task = requireTask(file, TASK_ID);
@@ -226,7 +226,7 @@ const handOff = async (
     const definition = agentId === null ? undefined : definitions.get(agentId);
 
     if (agentId !== null && definition === undefined) {
-      throw new Error(`the harness ships no definition for ${agentId}`);
+      throw new Error(`the sailor ships no definition for ${agentId}`);
     }
 
     const contextPath =

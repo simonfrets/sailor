@@ -2,27 +2,27 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 
-import { writeFileAtomic } from "../harness/atomic-write.js";
-import { HarnessError } from "../harness/harness-error.js";
-import { HARNESS_PATHS, harnessPath } from "../harness/layout.js";
+import { writeFileAtomic } from "../sailor/atomic-write.js";
+import { SailorError } from "../sailor/sailor-error.js";
+import { SAILOR_PATHS, sailorPath } from "../sailor/layout.js";
 
 export const INSTALL_MANIFEST_VERSION = 1;
 const MANIFEST_MODE = 0o644;
 
 /**
- * Who owns a file the harness put in a project.
+ * Who owns a file the sailor put in a project.
  *
- * A `managed` file is the harness's: it is kept in step with the template it
+ * A `managed` file is the sailor's: it is kept in step with the template it
  * came from, and an edit to it is a conflict. A `seeded` file is written once,
  * when it is absent, and then belongs to the project — `config/project.yaml`
  * exists to be edited, so reconciling it against the template would make
- * editing it the thing that breaks the next `harness init`.
+ * editing it the thing that breaks the next `sailor init`.
  */
 export const MANAGED_FILE_KINDS = ["managed", "seeded"] as const;
 export const managedFileKindSchema = z.enum(MANAGED_FILE_KINDS);
 
 export const managedFileEntrySchema = z.strictObject({
-  /** Path relative to the `.harness` directory, with `/` separators. */
+  /** Path relative to the `.sailor` directory, with `/` separators. */
   path: z.string().min(1),
   /** Hash of the content on disk after the install that recorded it. */
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
@@ -34,7 +34,7 @@ export const managedFileEntrySchema = z.strictObject({
   kind: managedFileKindSchema.default("managed"),
 });
 
-/** What the manifest remembers about one hook the harness took over. */
+/** What the manifest remembers about one hook the sailor took over. */
 export const hookRecordSchema = z.strictObject({
   hook: z.string().min(1),
   /**
@@ -46,20 +46,20 @@ export const hookRecordSchema = z.strictObject({
 });
 
 /**
- * The record of what the harness installed and what it looked like.
+ * The record of what the sailor installed and what it looked like.
  *
- * Without the hashes, `--update` could not tell a file the harness wrote from
+ * Without the hashes, `--update` could not tell a file the sailor wrote from
  * one a project deliberately changed, and would have to either overwrite local
  * work or never update anything.
  */
 export const installManifestSchema = z.strictObject({
   version: z.literal(INSTALL_MANIFEST_VERSION),
-  harnessVersion: z.string().min(1),
+  sailorVersion: z.string().min(1),
   installedAt: z.string().min(1),
   updatedAt: z.string().min(1),
   managedFiles: z.array(managedFileEntrySchema),
   /**
-   * Once `core.hooksPath` points at the harness, the dispatchers are the only
+   * Once `core.hooksPath` points at the sailor, the dispatchers are the only
    * hooks git can see. These two fields are therefore the only surviving
    * record of what the project had before, and a re-install reads them rather
    * than inspecting its own output and concluding there was never anything.
@@ -85,9 +85,9 @@ export const hashManagedFile = (contents: string): string =>
   createHash("sha256").update(contents, "utf8").digest("hex");
 
 const manifestPath = (projectRoot: string): string =>
-  harnessPath(projectRoot, HARNESS_PATHS.manifest);
+  sailorPath(projectRoot, SAILOR_PATHS.manifest);
 
-/** Returns null when the harness has never been installed in this project. */
+/** Returns null when the sailor has never been installed in this project. */
 export const readInstallManifest = (
   projectRoot: string
 ): InstallManifest | null => {
@@ -105,9 +105,9 @@ export const readInstallManifest = (
   try {
     parsed = JSON.parse(text);
   } catch (error: unknown) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
-      `${HARNESS_PATHS.manifest} is not valid JSON`,
+      `${SAILOR_PATHS.manifest} is not valid JSON`,
       [String(error)]
     );
   }
@@ -115,9 +115,9 @@ export const readInstallManifest = (
   const result = installManifestSchema.safeParse(parsed);
 
   if (!result.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
-      `${HARNESS_PATHS.manifest} is not a valid harness manifest`,
+      `${SAILOR_PATHS.manifest} is not a valid sailor manifest`,
       result.error.issues.map(
         (issue) => `${issue.path.join(".")}: ${issue.message}`
       )

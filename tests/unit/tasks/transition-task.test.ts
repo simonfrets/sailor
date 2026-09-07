@@ -1,4 +1,4 @@
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import {
   approveSpecification,
   createDefaultRunId,
@@ -140,7 +140,7 @@ describe("createTask", () => {
           runId: "run-2",
           at: AT,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -155,7 +155,7 @@ describe("createTask", () => {
           runId: "../../etc",
           at: AT,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -173,7 +173,7 @@ describe("stale revisions", () => {
           to: "awaiting_approval",
           toAgent: null,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("stale-task-revision");
@@ -191,7 +191,7 @@ describe("stale revisions", () => {
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("stale-task-revision");
@@ -224,7 +224,7 @@ describe("approval", () => {
           to: "implementing",
           toAgent: "coder",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -256,7 +256,7 @@ describe("approval", () => {
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -274,7 +274,7 @@ describe("approval", () => {
           ruleSetSha256: RULE_SET_SHA256,
           at: AT,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -316,7 +316,7 @@ describe("approval", () => {
             at: AT,
           }
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.message).toContain("no approved specification");
@@ -332,8 +332,8 @@ describe("transitionTask", () => {
       to: "cleaning",
       toAgent: "cleaner",
       gateReportIds: ["report-9"],
-      artifactPaths: [".harness/state/runs/run-1/agents/coder/diff.patch"],
-      contextPath: ".harness/state/runs/run-1/agents/cleaner",
+      artifactPaths: [".sailor/state/runs/run-1/agents/coder/diff.patch"],
+      contextPath: ".sailor/state/runs/run-1/agents/cleaner",
     });
 
     const task = only(file);
@@ -347,14 +347,14 @@ describe("transitionTask", () => {
       toAgent: "cleaner",
       ruleSetSha256: RULE_SET_SHA256,
       gateReportIds: ["report-9"],
-      artifactPaths: [".harness/state/runs/run-1/agents/coder/diff.patch"],
+      artifactPaths: [".sailor/state/runs/run-1/agents/coder/diff.patch"],
       at: AT.toISOString(),
       attempt: 1,
       failure: null,
-      contextPath: ".harness/state/runs/run-1/agents/cleaner",
+      contextPath: ".sailor/state/runs/run-1/agents/cleaner",
     });
     expect(task.agentId).toBe("cleaner");
-    expect(task.contextPath).toBe(".harness/state/runs/run-1/agents/cleaner");
+    expect(task.contextPath).toBe(".sailor/state/runs/run-1/agents/cleaner");
   });
 
   it("stamps a transition with the instant it happened, not one the task carried", () => {
@@ -391,7 +391,7 @@ describe("transitionTask", () => {
           to: "qa",
           toAgent: "qa",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -407,7 +407,7 @@ describe("transitionTask", () => {
           to: "qa",
           toAgent: "qa",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("final");
@@ -422,7 +422,7 @@ describe("transitionTask", () => {
           to: "failed",
           toAgent: null,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -447,7 +447,7 @@ describe("transitionTask", () => {
           toAgent: "coder",
           failure: { reason: "still broken", details: [] },
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.message).toContain("must not record a failure");
@@ -562,14 +562,14 @@ describe("transitionTask", () => {
           to: "specified",
           toAgent: "specifier",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("unknown-task");
   });
 
   it("refuses to hand a stage to an agent that does not own it", () => {
-    // Both are agents the harness ships and both records validate, so nothing
+    // Both are agents the sailor ships and both records validate, so nothing
     // downstream could tell this apart from a correct handoff. A driver builds
     // the next agent's context from whoever is recorded, and design decision 6
     // has the runtime enforce that context, so `implementing` would run under
@@ -583,7 +583,7 @@ describe("transitionTask", () => {
           to: "implementing",
           toAgent: "qa",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -603,7 +603,7 @@ describe("transitionTask", () => {
           to: "cleaning",
           toAgent: null,
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -624,7 +624,7 @@ describe("transitionTask", () => {
           toAgent: "hardener",
           failure: { reason: "waiting on a decision", details: [] },
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -644,7 +644,7 @@ describe("transitionTask", () => {
           to: "cleaning",
           toAgent: "tidier",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-transition");
@@ -661,7 +661,7 @@ describe("transitionTask", () => {
           toAgent: "cleaner",
           contextPath: "/tmp/somewhere",
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");

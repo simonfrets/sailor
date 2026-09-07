@@ -112,7 +112,7 @@ export const parseCliArguments = (argv: readonly string[]): CliParseResult => {
   const command = positionals[0];
 
   if (command === undefined) {
-    return usageError("missing command; run `harness --help`");
+    return usageError("missing command; run `sailor --help`");
   }
 
   const surplusFrom = (count: number): string | null => {

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { loadYamlConfig } from "../../../src/config/load-yaml-config.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { captureError } from "../../helpers/expect-error.js";
 
 const schema = z.strictObject({
@@ -33,7 +33,7 @@ describe("loadYamlConfig", () => {
   it("reports a syntax error with its line and column", () => {
     const error = captureError(
       () => load("version: 1\n  name: [unterminated\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -44,7 +44,7 @@ describe("loadYamlConfig", () => {
   it("locates a schema failure at the offending node", () => {
     const error = captureError(
       () => load("version: 1\nname: example\ntags: notalist\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -56,7 +56,7 @@ describe("loadYamlConfig", () => {
   it("falls back to the enclosing node when a required field is absent", () => {
     // `version` has no node of its own, so the location walks out to the
     // mapping that should have contained it rather than reporting nothing.
-    const error = captureError(() => load("name: example\n"), HarnessError);
+    const error = captureError(() => load("name: example\n"), SailorError);
 
     expect(error.details[0]).toContain("config/example.yaml:1:1");
     expect(error.details[0]).toContain("(at version)");
@@ -65,14 +65,14 @@ describe("loadYamlConfig", () => {
   it("reports every issue in one pass", () => {
     const error = captureError(
       () => load("version: 2\nname: ''\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.details).toHaveLength(2);
   });
 
   it("names only the file when the document has no node to point at", () => {
-    const error = captureError(() => load(""), HarnessError);
+    const error = captureError(() => load(""), SailorError);
 
     expect(error.details[0]).toContain("config/example.yaml:");
     expect(error.details[0]).not.toMatch(/\(at /);
@@ -81,7 +81,7 @@ describe("loadYamlConfig", () => {
   it("rejects an unknown key rather than ignoring it", () => {
     const error = captureError(
       () => load("version: 1\nname: example\nunexpected: true\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("unexpected");

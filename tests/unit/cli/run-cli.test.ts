@@ -8,7 +8,7 @@ import type {
   CliContext,
   RunCliOptions,
 } from "../../../src/cli/run-cli.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { RuleValidationError } from "../../../src/rules/rule-error.js";
 import { createRecordedStreams } from "../../helpers/cli-streams.js";
 import type { RecordedStreams } from "../../helpers/cli-streams.js";
@@ -26,11 +26,11 @@ afterEach(() => {
 });
 
 const packageRoot = (version = "9.9.9"): string => {
-  const directory = createTempDirectory("agentic-harness-package-");
+  const directory = createTempDirectory("sailor-package-");
 
   writeFileSync(
     join(directory, "package.json"),
-    `${JSON.stringify({ name: "agentic-harness", version })}\n`
+    `${JSON.stringify({ name: "sailor", version })}\n`
   );
 
   return directory;
@@ -77,7 +77,7 @@ describe("runCli", () => {
     const { exitCode, recorded } = await invoke([]);
 
     expect(exitCode).toBe(CLI_EXIT_CODES.ok);
-    expect(recorded.stdout()).toContain("Usage: harness <command>");
+    expect(recorded.stdout()).toContain("Usage: sailor <command>");
     for (const command of ["init", "doctor", "rules validate", "gate"]) {
       expect(recorded.stdout()).toContain(command);
     }
@@ -133,11 +133,11 @@ describe("runCli", () => {
     expect(seen[0]?.now()).toEqual(new Date("2026-08-26T00:00:00.000Z"));
   });
 
-  it("maps a harness error to its exit code", async () => {
+  it("maps a sailor error to its exit code", async () => {
     const { exitCode, recorded } = await invoke(["init"], {
       commands: {
         init: failingHandler(
-          new HarnessError("not-a-git-repository", "no repository here")
+          new SailorError("not-a-git-repository", "no repository here")
         ),
       },
     });
@@ -181,7 +181,7 @@ describe("runCli", () => {
 
   it("reports an unreadable package manifest as invalid configuration", async () => {
     const { exitCode, recorded } = await invoke(["--version"], {
-      packageRootDirectory: createTempDirectory("agentic-harness-empty-"),
+      packageRootDirectory: createTempDirectory("sailor-empty-"),
     });
 
     expect(exitCode).toBe(CLI_EXIT_CODES.invalidConfig);

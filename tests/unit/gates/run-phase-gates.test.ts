@@ -28,7 +28,7 @@ const PROFILE: ProjectProfile = {
   eslintConfigFiles: ["eslint.config.js"],
   gitHooksPath: null,
   existingHookEntrypoints: [],
-  validationMode: "native-plus-harness",
+  validationMode: "native-plus-sailor",
 };
 
 const ruleSetOf = (rules: string): ResolvedRuleSet =>

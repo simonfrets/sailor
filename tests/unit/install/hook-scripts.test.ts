@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import {
   LAUNCHER_PATH,
-  buildHarnessLauncher,
+  buildSailorLauncher,
   buildHookDispatcher,
   escapeForDoubleQuotes,
   hookScriptPath,
@@ -21,7 +21,7 @@ afterEach(() => {
 
 /** Parses a script the way `npm run lint:shell` parses the tracked ones. */
 const parses = (script: string): boolean => {
-  const directory = createTempDirectory("agentic-harness-hook-script-");
+  const directory = createTempDirectory("sailor-hook-script-");
   const path = join(directory, "script");
 
   writeFileSync(path, script);
@@ -29,27 +29,27 @@ const parses = (script: string): boolean => {
   return spawnSync("bash", ["-n", path], { encoding: "utf8" }).status === 0;
 };
 
-describe("buildHarnessLauncher", () => {
+describe("buildSailorLauncher", () => {
   it("runs the CLI out of the project's own dependency tree", () => {
-    expect(buildHarnessLauncher()).toContain('exec node "${entry}" "$@"');
-    expect(buildHarnessLauncher()).toContain(
-      "node_modules/agentic-harness/dist/cli/index.js"
+    expect(buildSailorLauncher()).toContain('exec node "${entry}" "$@"');
+    expect(buildSailorLauncher()).toContain(
+      "node_modules/sailor/dist/cli/index.js"
     );
   });
 
   it("reports a missing runtime with the configuration exit code", () => {
-    const script = buildHarnessLauncher();
+    const script = buildSailorLauncher();
 
     expect(script).toContain('if [ ! -f "${entry}" ]; then');
     expect(script).toContain("exit 3");
   });
 
   it("stops on the first failure rather than continuing", () => {
-    expect(buildHarnessLauncher()).toContain("set -euo pipefail");
+    expect(buildSailorLauncher()).toContain("set -euo pipefail");
   });
 
   it("parses as bash", () => {
-    expect(parses(buildHarnessLauncher())).toBe(true);
+    expect(parses(buildSailorLauncher())).toBe(true);
   });
 });
 
@@ -67,13 +67,13 @@ describe("buildHookDispatcher", () => {
 
   it("runs the gate for its phase through the project launcher", () => {
     expect(gate()).toContain(
-      `exec "\${harness_directory}/${LAUNCHER_PATH}" gate pre-commit`
+      `exec "\${sailor_directory}/${LAUNCHER_PATH}" gate pre-commit`
     );
   });
 
   it("names the hook it dispatches so the file explains itself", () => {
     expect(gate({ hook: "pre-push", phase: "pre-push" })).toContain(
-      "# The pre-push dispatcher. Managed by Agentic Harness"
+      "# The pre-push dispatcher. Managed by Sailor"
     );
   });
 
@@ -98,10 +98,10 @@ describe("buildHookDispatcher", () => {
   it("runs the previous hook before the gate, with the same arguments", () => {
     const script = gate({ chained: ".husky/pre-commit" });
     const previous = script.indexOf('"${previous_hook}" "$@"');
-    const harnessGate = script.indexOf("gate pre-commit");
+    const sailorGate = script.indexOf("gate pre-commit");
 
     expect(previous).toBeGreaterThan(-1);
-    expect(harnessGate).toBeGreaterThan(previous);
+    expect(sailorGate).toBeGreaterThan(previous);
   });
 
   it("does not exec the previous hook, so the gate still runs after it", () => {

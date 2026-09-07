@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 
-import { HARNESS_PATHS, harnessPath } from "../harness/layout.js";
+import { SAILOR_PATHS, sailorPath } from "../sailor/layout.js";
 import type { CommandRunner } from "../processes/command-runner.js";
 
 const GIT_TIMEOUT_MS = 10_000;
@@ -37,8 +37,8 @@ export interface HookEnvironment {
   readonly hooksPathScope: HooksPathScope | null;
   /** Absolute directory git was running hooks from before this install. */
   readonly hooksDirectory: string;
-  /** True when git already dispatches through this project's harness. */
-  readonly dispatchedByHarness: boolean;
+  /** True when git already dispatches through this project's sailor. */
+  readonly dispatchedBySailor: boolean;
   /** Executable hooks that were active, sorted by name. */
   readonly priorHooks: readonly PriorHook[];
 }
@@ -102,12 +102,12 @@ export const toProjectPath = (projectRoot: string, path: string): string => {
 };
 
 /**
- * Records what git was doing about hooks before the harness touched anything.
+ * Records what git was doing about hooks before the sailor touched anything.
  *
  * The hooks directory is resolved from `core.hooksPath` when it is set and from
  * `--git-common-dir` otherwise, rather than by assuming `<root>/.git/hooks`:
  * in a linked worktree `.git` is a file and the hooks that actually run belong
- * to the main repository, so the naive path would find nothing and the harness
+ * to the main repository, so the naive path would find nothing and the sailor
  * would report that a project had no hooks while quietly switching them off.
  */
 export const discoverHookEnvironment = async (
@@ -142,7 +142,7 @@ export const discoverHookEnvironment = async (
       // git answers with a path relative to the working tree it was asked in
       // whenever it can, so it is resolved against the same directory.
       resolve(projectRoot, commonDirectory === "" ? ".git" : commonDirectory),
-      HARNESS_PATHS.hooks
+      SAILOR_PATHS.hooks
     );
   } else {
     // git resolves a relative core.hooksPath against the top of the working
@@ -150,15 +150,15 @@ export const discoverHookEnvironment = async (
     hooksDirectory = resolve(projectRoot, hooksPath);
   }
 
-  const dispatchedByHarness =
-    hooksDirectory === harnessPath(projectRoot, HARNESS_PATHS.hooks);
+  const dispatchedBySailor =
+    hooksDirectory === sailorPath(projectRoot, SAILOR_PATHS.hooks);
 
   return {
     hooksPath,
     hooksPathScope,
     hooksDirectory,
-    dispatchedByHarness,
-    priorHooks: dispatchedByHarness
+    dispatchedBySailor,
+    priorHooks: dispatchedBySailor
       ? []
       : listExecutableHooks(hooksDirectory).map((hook) => ({
           hook,

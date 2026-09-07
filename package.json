@@ -1,11 +1,11 @@
 {
-  "name": "agentic-harness",
+  "name": "sailor",
   "version": "0.1.0",
-  "description": "A local, project-scoped harness for orchestrating coding agents through CLI adapters.",
+  "description": "A local, project-scoped workflow engine for orchestrating coding agents through CLI adapters.",
   "author": "Sinan Coskun",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/simonfrets/agentic-harness.git"
+    "url": "git+https://github.com/simonfrets/sailor.git"
   },
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
     }
   },
   "bin": {
-    "harness": "./dist/cli/index.js"
+    "sailor": "./dist/cli/index.js"
   },
   "files": [
     "LICENSE",

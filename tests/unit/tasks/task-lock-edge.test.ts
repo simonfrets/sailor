@@ -1,9 +1,9 @@
 import { lock } from "proper-lockfile";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { withTaskLock } from "../../../src/tasks/task-lock.js";
 import { captureRejection } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
 jest.mock("proper-lockfile", () => ({ lock: jest.fn() }));
@@ -17,7 +17,7 @@ afterEach(() => {
 /**
  * Every failure `proper-lockfile` produces itself carries a `code`: `ELOCKED`
  * for contention, and the filesystem's own code for anything else. A rejection
- * with no code at all is what would reach the harness from something the
+ * with no code at all is what would reach the sailor from something the
  * library does not control - a broken installation of it, or a caller handing
  * it options its own retry layer throws on - so this is the defensive branch of
  * the headline choice rather than a state a real lock can be driven into.
@@ -28,7 +28,7 @@ afterEach(() => {
  */
 describe("withTaskLock", () => {
   it("does not claim contention for a failure that carries no code", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     let ran = false;
 
     lockMock.mockRejectedValue(new Error("the lock module went wrong"));
@@ -40,7 +40,7 @@ describe("withTaskLock", () => {
 
           return "ran";
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("task-lock-failed");

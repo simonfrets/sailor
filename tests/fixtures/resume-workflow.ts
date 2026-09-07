@@ -5,7 +5,7 @@
  * rather than a block inside a test because the criterion is about a process
  * boundary: this program is started fresh, shares no memory with whatever
  * stopped, and is given nothing but two paths. Everything it knows about the
- * task it reads out of `.harness/tasks.yaml`.
+ * task it reads out of `.sailor/tasks.yaml`.
  *
  * The summary goes to stdout as JSON, which is the only channel back.
  */

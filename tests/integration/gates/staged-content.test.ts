@@ -6,7 +6,7 @@ import {
   runPhaseGates,
 } from "../../../src/gates/run-phase-gates.js";
 import type { PhaseGateReport } from "../../../src/gates/run-phase-gates.js";
-import { readHarnessTemplateFile } from "../../../src/install/harness-templates.js";
+import { readSailorTemplateFile } from "../../../src/install/sailor-templates.js";
 import {
   NODE_COMMAND_RUNNER_DEFAULTS,
   createNodeCommandRunner,
@@ -32,7 +32,7 @@ const ruleSet = resolveRuleSet([
     origin: "builtin",
     location: "rules/git.yaml",
     bundle: loadRuleBundle(
-      readHarnessTemplateFile(process.cwd(), "rules/git.yaml"),
+      readSailorTemplateFile(process.cwd(), "rules/git.yaml"),
       { source: "rules/git.yaml" }
     ),
   },
@@ -75,7 +75,7 @@ const gateWithIndex = async (
  * the temporary index git built for this commit holds the conflicted one.
  */
 const buildPartialCommit = (): { root: string; temporaryIndex: string } => {
-  const root = createTempDirectory("agentic-harness-staged-");
+  const root = createTempDirectory("sailor-staged-");
   const temporaryIndex = join(root, "temporary-index");
 
   initRepository(root);
@@ -107,7 +107,7 @@ describe("the shipped staged-content gate", () => {
   });
 
   it("passes when the index the commit is built from is clean", async () => {
-    const root = createTempDirectory("agentic-harness-staged-");
+    const root = createTempDirectory("sailor-staged-");
 
     initRepository(root);
     writeFileSync(join(root, "a.txt"), "clean\n");
@@ -120,7 +120,7 @@ describe("the shipped staged-content gate", () => {
   });
 
   it("reads the main index when git names no temporary one", async () => {
-    const root = createTempDirectory("agentic-harness-staged-");
+    const root = createTempDirectory("sailor-staged-");
 
     initRepository(root);
     writeFileSync(join(root, "a.txt"), CONFLICTED);

@@ -14,10 +14,10 @@ const buildRuleSet = (): ResolvedRuleSet =>
   resolveRuleSet([
     {
       origin: "builtin",
-      location: ".harness/rules/base.yaml",
+      location: ".sailor/rules/base.yaml",
       bundle: loadRuleBundle(
         ruleBundleYaml({
-          bundleId: "harness-base",
+          bundleId: "sailor-base",
           ruleId: "base.tests",
           checks: projectScriptCheckYaml({
             checkId: "native-test",
@@ -30,7 +30,7 @@ const buildRuleSet = (): ResolvedRuleSet =>
     },
     {
       origin: "project",
-      location: ".harness/rules/custom/team.yaml",
+      location: ".sailor/rules/custom/team.yaml",
       bundle: loadRuleBundle(
         ruleBundleYaml({
           bundleId: "team",
@@ -66,7 +66,7 @@ describe("formatRuleSetExplanation", () => {
     const text = formatRuleSetExplanation(buildRuleSet());
 
     expect(text).toContain("base.tests [error] from builtin bundle");
-    expect(text).toContain("harness-base");
+    expect(text).toContain("sailor-base");
     expect(text).toContain("agents: coder");
     expect(text).toContain("scopes: the whole project");
     expect(text).toContain("native-test: project script `test` at pre-commit");
@@ -78,11 +78,11 @@ describe("formatRuleSetExplanation", () => {
     const ruleSet = resolveRuleSet([
       {
         origin: "builtin",
-        location: ".harness/rules/git.yaml",
+        location: ".sailor/rules/git.yaml",
         bundle: loadRuleBundle(
           [
             "version: 1",
-            "id: harness-git",
+            "id: sailor-git",
             "description: Git rules",
             "",
             "rules:",

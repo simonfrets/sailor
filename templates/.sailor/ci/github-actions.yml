@@ -1,0 +1,68 @@
+# Managed by Sailor.
+#
+# This file does nothing where it sits. Copy it to .github/workflows/ in this
+# project to make it run:
+#
+#     mkdir -p .github/workflows
+#     cp .sailor/ci/github-actions.yml .github/workflows/sailor.yml
+#
+# The sailor deliberately installs nothing outside .sailor/, so placing a
+# workflow is the project's decision to make. It is worth making: a git hook
+# is skippable with `git commit --no-verify`, so the hooks the sailor
+# installs are a convenience. Only CI is an enforcement.
+name: Sailor gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Sailor gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          # Cached against the sailor's own lockfile, not the project's. The
+          # private tree under .sailor/ is always npm by design; the project
+          # may not be, and pointing this at a package-lock.json that does not
+          # exist fails the step outright.
+          cache: npm
+          cache-dependency-path: .sailor/package-lock.json
+
+      # Replace this with your own package manager if the project is not on
+      # npm - `pnpm install --frozen-lockfile`, `yarn install --immutable`,
+      # `bun install --frozen-lockfile`. The gates run this project's own
+      # scripts, so its dependencies have to be present before any of them can.
+      - name: Install project dependencies
+        run: npm ci
+
+      # .sailor/node_modules is machine-local and git-ignored, so the private
+      # tree is resolved here. This is npm whatever the project uses: resolving
+      # it with the project's manager would apply that manager's workspace
+      # rules and, in a monorepo, hoist the sailor's dependencies into the
+      # workspace root. It needs .sailor/package-lock.json committed, which
+      # `sailor init` produces.
+      - name: Resolve the sailor runtime
+        run: npm ci --omit=dev
+        working-directory: .sailor
+
+      # Both phases run, because they check different things: pre-commit
+      # carries lint and type checking, pre-push carries the build.
+      #
+      # One caveat worth knowing: a rule whose check inspects staged content,
+      # such as the shipped `git diff --check --cached`, has nothing to look at
+      # here, because CI has no index. Those rules are enforced by the hook
+      # alone.
+      - name: pre-commit gate
+        run: ./.sailor/bin/sailor gate pre-commit
+
+      - name: pre-push gate
+        run: ./.sailor/bin/sailor gate pre-push

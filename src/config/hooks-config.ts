@@ -9,7 +9,7 @@ import { loadYamlConfig } from "./load-yaml-config.js";
  *
  * There is no `replace`. Design decision 2 forbids silently discarding a host
  * project's hook configuration, so the only two honest outcomes are to run the
- * existing hook and then the harness gate, or to stop and let a human decide.
+ * existing hook and then the sailor gate, or to stop and let a human decide.
  */
 export const EXISTING_HOOK_POLICIES = ["abort", "chain"] as const;
 export const existingHookPolicySchema = z.enum(EXISTING_HOOK_POLICIES);
@@ -17,7 +17,7 @@ export const existingHookPolicySchema = z.enum(EXISTING_HOOK_POLICIES);
 export const managedHookSchema = z.strictObject({
   hook: z.enum(HOOK_NAMES),
   enabled: z.boolean().default(true),
-  /** The gate phase the endpoint runs. `harness gate <phase>`. */
+  /** The gate phase the endpoint runs. `sailor gate <phase>`. */
   phase: phaseSchema,
 });
 

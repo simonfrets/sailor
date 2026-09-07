@@ -1,4 +1,4 @@
-import type { HarnessErrorKind } from "../harness/harness-error.js";
+import type { SailorErrorKind } from "../sailor/sailor-error.js";
 
 /**
  * Exit codes are part of the CLI's contract: a git hook, a CI step or a script
@@ -12,7 +12,7 @@ export const CLI_EXIT_CODES = {
   failure: 1,
   /** The command line could not be understood. */
   usage: 2,
-  /** Rules or harness configuration are invalid, or absent. */
+  /** Rules or sailor configuration are invalid, or absent. */
   invalidConfig: 3,
   /** A required check on an error rule failed and blocked the phase. */
   gateBlocked: 4,
@@ -20,7 +20,7 @@ export const CLI_EXIT_CODES = {
   refused: 5,
 } as const;
 
-export const exitCodeForHarnessError = (kind: HarnessErrorKind): number => {
+export const exitCodeForSailorError = (kind: SailorErrorKind): number => {
   switch (kind) {
     case "invalid-config":
     case "missing-context":

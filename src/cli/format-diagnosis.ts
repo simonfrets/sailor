@@ -1,8 +1,8 @@
 import type {
   Diagnostic,
   DiagnosticStatus,
-  HarnessDiagnosis,
-} from "../install/diagnose-harness.js";
+  SailorDiagnosis,
+} from "../install/diagnose-sailor.js";
 
 const labelFor = (status: DiagnosticStatus): string => {
   switch (status) {
@@ -34,9 +34,9 @@ const plural = (count: number, noun: string): string =>
  * problems would leave someone unable to tell a check that passed from one that
  * this build never ran.
  */
-export const formatDiagnosis = (diagnosis: HarnessDiagnosis): string =>
+export const formatDiagnosis = (diagnosis: SailorDiagnosis): string =>
   `${[
-    `Harness diagnosis for ${diagnosis.projectRoot}`,
+    `Sailor diagnosis for ${diagnosis.projectRoot}`,
     "",
     ...diagnosis.diagnostics.flatMap(renderDiagnostic),
     "",

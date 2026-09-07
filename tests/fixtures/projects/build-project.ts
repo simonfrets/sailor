@@ -18,7 +18,7 @@ export interface ProjectFixture {
  * deliberate formatting quirk could not pass that gate.
  */
 export const buildProject = (fixture: ProjectFixture): string => {
-  const root = createTempDirectory("agentic-harness-project-");
+  const root = createTempDirectory("sailor-project-");
 
   if (fixture.manifest !== undefined) {
     writeFileSync(

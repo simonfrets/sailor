@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
-import { readHarnessTemplateFile } from "../../../src/install/harness-templates.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
+import { readSailorTemplateFile } from "../../../src/install/sailor-templates.js";
 import {
   agentContextDirectory,
   readAgentContext,
@@ -72,7 +72,7 @@ describe("acceptance criterion 9: a stopped workflow resumes from tasks.yaml", (
 
     // A real second Node process. It shares no module registry, no cache and
     // no object graph with the run above; it is handed two paths and nothing
-    // else, so `.harness/tasks.yaml` is the whole handover.
+    // else, so `.sailor/tasks.yaml` is the whole handover.
     const resumed = resumeInAnotherProcess(root);
 
     expect(resumed.resumedAt).toBe("implementing");
@@ -132,19 +132,19 @@ describe("acceptance criterion 9: a stopped workflow resumes from tasks.yaml", (
  * `.gitignore`, not one written to suit the test - and clones it.
  *
  * The clone is what another machine gets: exactly the tracked files, decided
- * by the ignore file the harness actually installs.
+ * by the ignore file the sailor actually installs.
  */
 const cloneTrackedFiles = (root: string): string => {
-  const ignore = join(root, ".harness", ".gitignore");
+  const ignore = join(root, ".sailor", ".gitignore");
 
   mkdirSync(dirname(ignore), { recursive: true });
-  writeFileSync(ignore, readHarnessTemplateFile(packageRoot, "gitignore"));
+  writeFileSync(ignore, readSailorTemplateFile(packageRoot, "gitignore"));
 
   initRepository(root);
   runGit(root, ["add", "-A"]);
   runGit(root, ["commit", "--quiet", "-m", "Start the task"]);
 
-  const destination = join(createTempDirectory("agentic-harness-clone-"), "b");
+  const destination = join(createTempDirectory("sailor-clone-"), "b");
 
   runGit(root, ["clone", "--quiet", root, destination]);
 
@@ -166,12 +166,12 @@ describe("a workflow resumed from a fresh checkout", () => {
     // What the second developer actually has. `tasks.yaml` is committed on
     // purpose; every context the first machine wrote is under the ignored
     // `state/` tree and did not come with it.
-    expect(existsSync(join(clone, ".harness", "tasks.yaml"))).toBe(true);
-    expect(existsSync(join(clone, ".harness", "state"))).toBe(false);
+    expect(existsSync(join(clone, ".sailor", "tasks.yaml"))).toBe(true);
+    expect(existsSync(join(clone, ".sailor", "state"))).toBe(false);
 
     const missing = captureError(
       () => readAgentContext(clone, agentContextDirectory(RUN_ID, "coder")),
-      HarnessError
+      SailorError
     );
 
     expect(missing.kind).toBe("missing-context");

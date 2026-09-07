@@ -1,14 +1,14 @@
 import { stringify } from "yaml";
 
 import { loadYamlConfig } from "../config/load-yaml-config.js";
-import { writeFileAtomic } from "../harness/atomic-write.js";
-import { HarnessError } from "../harness/harness-error.js";
+import { writeFileAtomic } from "../sailor/atomic-write.js";
+import { SailorError } from "../sailor/sailor-error.js";
 import {
-  HARNESS_DIRECTORY,
-  HARNESS_PATHS,
-  harnessPath,
-} from "../harness/layout.js";
-import { readTextFileIfPresent } from "../harness/read-text-file.js";
+  SAILOR_DIRECTORY,
+  SAILOR_PATHS,
+  sailorPath,
+} from "../sailor/layout.js";
+import { readTextFileIfPresent } from "../sailor/read-text-file.js";
 import { TASK_FILE_VERSION, taskFileSchema } from "./task-schema.js";
 import type { Task, TaskFile } from "./task-schema.js";
 
@@ -19,12 +19,12 @@ const TASK_FILE_MODE = 0o644;
  * it is generated. It is a YAML comment, so reading the file back ignores it
  * and the round trip stays exact.
  */
-const BANNER = `# Managed by Agentic Harness. Written by the workflow after every
-# transition; edit a task through the harness rather than by hand.
+const BANNER = `# Managed by Sailor. Written by the workflow after every
+# transition; edit a task through the sailor rather than by hand.
 `;
 
 /** How the file is named in diagnostics. Never an absolute machine path. */
-export const TASK_FILE_SOURCE = `${HARNESS_DIRECTORY}/${HARNESS_PATHS.tasks}`;
+export const TASK_FILE_SOURCE = `${SAILOR_DIRECTORY}/${SAILOR_PATHS.tasks}`;
 
 /**
  * Task state sits beside the rules rather than under `state/`.
@@ -34,7 +34,7 @@ export const TASK_FILE_SOURCE = `${HARNESS_DIRECTORY}/${HARNESS_PATHS.tasks}`;
  * tracked, so what the workflow decided is reviewable in a pull request.
  */
 export const taskFilePath = (projectRoot: string): string =>
-  harnessPath(projectRoot, HARNESS_PATHS.tasks);
+  sailorPath(projectRoot, SAILOR_PATHS.tasks);
 
 /**
  * A project with no task state yet.
@@ -52,8 +52,8 @@ export const emptyTaskFile = (): TaskFile => ({
 /**
  * Reads the task file, treating "absent" as "no tasks yet".
  *
- * `tasks.yaml` is not installed by `harness init`: it is neither a managed
- * file the harness reconciles nor a seeded one the project owns, so it never
+ * `tasks.yaml` is not installed by `sailor init`: it is neither a managed
+ * file the sailor reconciles nor a seeded one the project owns, so it never
  * goes through the installation plan. The first transition creates it.
  *
  * It takes no lock. What comes back is whole - a write lands by atomic rename,
@@ -82,7 +82,7 @@ export const readTaskFile = (projectRoot: string): TaskFile => {
  * It takes no lock and checks no revision: it writes the document it is given
  * over whatever is there. Reading with `readTaskFile` and then writing with
  * this is the lost-update race the expected-revision check exists to catch,
- * and neither call consults that revision, so a transition another harness
+ * and neither call consults that revision, so a transition another sailor
  * process recorded in the window between them is erased silently.
  * `updateTaskFile` is the read-change-write that holds the lock across both;
  * this is for a caller that already holds it.
@@ -91,7 +91,7 @@ export const writeTaskFile = (projectRoot: string, file: TaskFile): void => {
   const result = taskFileSchema.safeParse(file);
 
   if (!result.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `refusing to write ${TASK_FILE_SOURCE}: the task state is not valid`,
       result.error.issues.map(
@@ -117,7 +117,7 @@ export const requireTask = (file: TaskFile, id: string): Task => {
   const task = findTask(file, id);
 
   if (task === null) {
-    throw new HarnessError(
+    throw new SailorError(
       "unknown-task",
       `${TASK_FILE_SOURCE} has no task \`${id}\``,
       file.tasks.length === 0

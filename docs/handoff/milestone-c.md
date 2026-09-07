@@ -10,11 +10,11 @@ complete and this document supersedes them.
 
 ## Where things stand
 
-- Worktree: `<PROJECTS>/agentic-harness-codex-basic-structure`
+- Worktree: `<PROJECTS>/sailor-codex-basic-structure`
 - Branch: `codex/milestone-c`, cut from `main`. Do **not** reuse
   `codex/basic-structure`, which is merged and kept only for its history.
 - HEAD of `main`: `bf9b4f9 Merge the rule kernel, installer and hook dispatch`
-- The repository is **public**, at `simonfrets/agentic-harness`.
+- The repository is **public**, at `simonfrets/sailor`.
 
 `npm run check`, `npm run build`, `npm run test:coverage` and
 `npm pack --dry-run` all pass: 665 tests across 60 suites at 99.3% statements
@@ -24,16 +24,16 @@ GitHub Actions runs the same gate on every push and pull request, on Linux and
 macOS, against Node 22.22.1 — the floor `engines.node` declares — and current 22. That is the enforcement; `.husky/pre-commit` is the convenience, and is
 skippable with `--no-verify`. CI is green on `main`.
 
-**`v0.1.0` is released.** The harness is deliberately not on npm: an installed
-project's `.harness/package.json` pins the tarball attached to the GitHub
+**`v0.1.0` is released.** The sailor is deliberately not on npm: an installed
+project's `.sailor/package.json` pins the tarball attached to the GitHub
 release, and the owner and name come from this package's own `repository`
 field. Cutting a new release means tagging `vX.Y.Z` and attaching the exact
-`npm pack` output as `agentic-harness-X.Y.Z.tgz`, or every `harness init` will
+`npm pack` output as `sailor-X.Y.Z.tgz`, or every `sailor init` will
 fail at the runtime step.
 
 ### Proven end to end
 
-`harness init` was run against a real TypeScript project — real `tsc` build and
+`sailor init` was run against a real TypeScript project — real `tsc` build and
 typecheck, a real `node --test` suite, and a pre-existing `.git/hooks/pre-commit`.
 It completed, `doctor` reported ten checks OK and one warning, the project's own
 hook still ran first, a clean commit passed, a type error blocked, and a partial
@@ -41,38 +41,38 @@ commit carrying conflict markers was refused. Do not regress any of that.
 
 ### What B3 and B4 added
 
-| Module                                | Public surface                                                                           |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `src/harness/atomic-write.ts`         | `writeFileAtomic` (moved out of `src/install/` in C1)                                    |
-| `src/install/install-manifest.ts`     | `readInstallManifest`, `writeInstallManifest`, `hashManagedFile`, `hookRecordSchema`     |
-| `src/install/plan-installation.ts`    | `planInstallation`, `toPlannedFileSource`, `INSTALL_ACTIONS`                             |
-| `src/install/runtime-dependencies.ts` | `installRuntimeDependencies`, `buildRuntimePackageManifest`, `RUNTIME_INSTALL_ARGV`      |
-| `src/install/discover-hooks.ts`       | `discoverHookEnvironment`, `toProjectPath`                                               |
-| `src/install/plan-hooks.ts`           | `planHooks`                                                                              |
-| `src/install/hook-scripts.ts`         | `buildHarnessLauncher`, `buildHookDispatcher`, `escapeForDoubleQuotes`, `hookScriptPath` |
-| `src/install/install-harness.ts`      | `installHarness`                                                                         |
-| `src/install/diagnose-harness.ts`     | `diagnoseHarness`, `REQUIRED_NODE_VERSION`, `REQUIRED_TOOLS`, `versionOrder`             |
-| `src/cli/commands/init.ts`            | registered as `init`                                                                     |
-| `src/cli/commands/doctor.ts`          | registered as `doctor`                                                                   |
-| `src/cli/format-install-result.ts`    | `formatInstallResult`                                                                    |
-| `src/cli/format-diagnosis.ts`         | `formatDiagnosis`                                                                        |
+| Module                                | Public surface                                                                          |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `src/sailor/atomic-write.ts`          | `writeFileAtomic` (moved out of `src/install/` in C1)                                   |
+| `src/install/install-manifest.ts`     | `readInstallManifest`, `writeInstallManifest`, `hashManagedFile`, `hookRecordSchema`    |
+| `src/install/plan-installation.ts`    | `planInstallation`, `toPlannedFileSource`, `INSTALL_ACTIONS`                            |
+| `src/install/runtime-dependencies.ts` | `installRuntimeDependencies`, `buildRuntimePackageManifest`, `RUNTIME_INSTALL_ARGV`     |
+| `src/install/discover-hooks.ts`       | `discoverHookEnvironment`, `toProjectPath`                                              |
+| `src/install/plan-hooks.ts`           | `planHooks`                                                                             |
+| `src/install/hook-scripts.ts`         | `buildSailorLauncher`, `buildHookDispatcher`, `escapeForDoubleQuotes`, `hookScriptPath` |
+| `src/install/install-sailor.ts`       | `installSailor`                                                                         |
+| `src/install/diagnose-sailor.ts`      | `diagnoseSailor`, `REQUIRED_NODE_VERSION`, `REQUIRED_TOOLS`, `versionOrder`             |
+| `src/cli/commands/init.ts`            | registered as `init`                                                                    |
+| `src/cli/commands/doctor.ts`          | registered as `doctor`                                                                  |
+| `src/cli/format-install-result.ts`    | `formatInstallResult`                                                                   |
+| `src/cli/format-diagnosis.ts`         | `formatDiagnosis`                                                                       |
 
 `CliContext` gained `nodeVersion`, supplied by the bin entry as
 `process.versions.node`, so `doctor` can compare against
 `REQUIRED_NODE_VERSION` without any module but `src/cli/index.ts` touching
-`process`. `HARNESS_ERROR_KINDS` gained `git-config-failed`, mapped to exit 5.
+`process`. `SAILOR_ERROR_KINDS` gained `git-config-failed`, mapped to exit 5.
 
 ## Verified against a throwaway repository
 
 Acceptance criteria 1–6 from the A–D handoff were demonstrated by hand against
 a temporary Git project, not only by tests:
 
-1. `harness init` left the host `package.json` and `eslint.config.js`
+1. `sailor init` left the host `package.json` and `eslint.config.js`
    byte-identical.
-2. The footprint was `.harness/` plus one local Git setting,
-   `core.hooksPath=.harness/hooks`.
+2. The footprint was `.sailor/` plus one local Git setting,
+   `core.hooksPath=.sailor/hooks`.
 3. A real `git commit` printed the project's own `pre-commit` hook first, then
-   the harness gate, then the project's `commit-msg` hook — which the harness
+   the sailor gate, then the project's `commit-msg` hook — which the sailor
    has no gate for and preserved with a pass-through.
 4. A `rules/custom/team.yaml` bundle appeared in `rules explain --agent coder`
    and ran as a fifth check at `gate pre-commit`, with no TypeScript change.
@@ -86,11 +86,11 @@ Criterion 7 (hash stability across independent directories) is covered by
 **All six were re-checked after C1-C3**, against a fresh throwaway TypeScript
 project with a real `eslint`, `tsc` and `node --test`, a pre-existing
 `.git/hooks/pre-commit` and `commit-msg`, and the C3 build swapped into
-`.harness/node_modules` so the gate ran this code and not the released one.
-Same results: host config byte-identical, footprint `.harness/` plus
+`.sailor/node_modules` so the gate ran this code and not the released one.
+Same results: host config byte-identical, footprint `.sailor/` plus
 `core.hooksPath`, project hook then gate then `commit-msg`, the custom rule as
 a fifth check, exit 4 on a real blocked commit, and the warning variant
-reported in full while the commit landed. `.harness/tasks.yaml` is absent after
+reported in full while the commit landed. `.sailor/tasks.yaml` is absent after
 `init`, as intended.
 
 **Criterion 8** is covered by `tests/integration/tasks/handoffs.test.ts` and was
@@ -100,7 +100,7 @@ run, each carrying its own `tools`, `writeScopes` and compiled policy.
 **Criterion 9** was demonstrated with two separate Node processes driving the
 installed runtime. The first created the task, ran the specifier and the coder,
 and exited at `implementing`. The second shared nothing with it, read only
-`.harness/tasks.yaml`, reported `draft, specified, awaiting_approval` as done
+`.sailor/tasks.yaml`, reported `draft, specified, awaiting_approval` as done
 and the rest as pending, resumed at `implementing`, ran the remaining four
 agents, and reached `completed` - with `specified` and `implementing` each
 entered exactly once across both processes.
@@ -116,27 +116,27 @@ out of the installed runtime, both wrote and one was silently lost.
 
 Read these before planning Milestone C. None is hidden by a passing test.
 
-1. ~~`agentic-harness` is unpublished, so a real `harness init` cannot
+1. ~~`sailor` is unpublished, so a real `sailor init` cannot
    finish.~~ **Fixed.** The private manifest pins a GitHub release tarball
    rather than a registry version, and `v0.1.0` is published. Verified: npm
-   resolves the URL, and `harness init` completes with exit 0 on a real
+   resolves the URL, and `sailor init` completes with exit 0 on a real
    project. The failure path was fixed with it — dependencies resolve _before_
    `core.hooksPath` is redirected, so a failed install leaves hooks alone and
    the repository still commits, and the summary prints either way.
 
 2. ~~A project cannot edit `config/project.yaml` or `config/hooks.yaml` and
-   then re-run `harness init`.~~ **Fixed in C0.** Installed files now carry a
+   then re-run `sailor init`.~~ **Fixed in C0.** Installed files now carry a
    kind. A `seeded` file is written once and never reconciled; ownership is a
    property of the shipped file rather than of the manifest entry, so an
    installation made by an earlier version is reclassified rather than
-   migrated. `installHarness` reads the _installed_ `config/hooks.yaml` rather
+   migrated. `installSailor` reads the _installed_ `config/hooks.yaml` rather
    than the template, because accepting an edit and then ignoring it would be
    worse than refusing it.
 
 3. **Installing from one linked worktree redirects hooks for the whole
    repository.** `core.hooksPath` is repository-local configuration that Git
    shares across worktrees. The written value is relative so each worktree
-   resolves its own `.harness/hooks`, but a worktree without one then runs no
+   resolves its own `.sailor/hooks`, but a worktree without one then runs no
    hooks at all. Documented in `README.md`; the alternative,
    `extensions.worktreeConfig`, changes repository configuration semantics
    globally and was judged too invasive to enable on a project's behalf.
@@ -146,7 +146,7 @@ Read these before planning Milestone C. None is hidden by a passing test.
    project owns. The profile now reports the installed `validationMode`, and a
    `packageManager` pin there wins over the host manifest's field. **Still
    open: nothing acts on `validationMode`.** It is carried on the profile and
-   reported, but no gate filters on it, so `native-only` and `harness-only`
+   reported, but no gate filters on it, so `native-only` and `sailor-only`
    currently describe an intent the runtime does not honour. Deciding what they
    filter — rule origin is the obvious axis — is open work, and is a change to
    gate behaviour rather than to discovery.
@@ -156,10 +156,10 @@ Read these before planning Milestone C. None is hidden by a passing test.
 
 6. ~~There is no CI.~~ **Fixed, and now actually executing.** Both workflows
    are real: `.github/workflows/ci.yml` for this repository, and
-   `.harness/ci/github-actions.yml` shipped for installed projects to copy into
-   `.github/workflows/` themselves — the harness cannot place it, because
-   `.github/` is outside the `.harness/` boundary decision 1 forbids crossing.
-   `harness doctor` reports its absence as a warning. The Node version is
+   `.sailor/ci/github-actions.yml` shipped for installed projects to copy into
+   `.github/workflows/` themselves — the sailor cannot place it, because
+   `.github/` is outside the `.sailor/` boundary decision 1 forbids crossing.
+   `sailor doctor` reports its absence as a warning. The Node version is
    pinned rather than read from `engines.node`, because that field is a range
    and `setup-node` resolves a range to the newest match, so the declared floor
    would never have run; a test asserts the pin still equals the floor.
@@ -172,7 +172,7 @@ Read these before planning Milestone C. None is hidden by a passing test.
 
 8. **Nothing drives the workflow from the command line.** C1-C3 are a library:
    `createTask`, `approveSpecification`, `transitionTask`, `writeAgentContext`
-   and `updateTaskFile` are exported and tested, but no `harness task` command
+   and `updateTaskFile` are exported and tested, but no `sailor task` command
    exists and no agent is ever invoked. That is deliberate - the B1 command set
    is `init`, `doctor`, `rules validate`, `rules explain` and `gate <phase>`,
    and the thing that would call these is the Milestone D runtime - but it does
@@ -211,7 +211,7 @@ Read these before planning Milestone C. None is hidden by a passing test.
     would replace a version `proper-lockfile` is tested against with one it is
     not, to fix a warning nothing emits. `proper-lockfile` uses it to remove a
     held lock when the process exits, which is the part of the lock protocol
-    the harness picked a reviewed library for in the first place. The condition
+    the sailor picked a reviewed library for in the first place. The condition
     that would change this is `proper-lockfile` publishing a release that moves
     the pin, or one of these acquiring a real advisory.
 
@@ -258,17 +258,17 @@ rest.
    _this_ repository. A test driving the runner against a fixture must build it
    with `baseEnv: cleanEnvironment()`.
 
-7. **`tests/unit/install/harness-templates.test.ts` asserts the exact list of
+7. **`tests/unit/install/sailor-templates.test.ts` asserts the exact list of
    shipped template paths**, currently 14, _and_ the exact list of seeded ones.
    Adding a template fails both on purpose: the second is what forces a
-   decision about who owns the new file. `bin/harness` and `hooks/*` are
+   decision about who owns the new file. `bin/sailor` and `hooks/*` are
    generated, not templates, and are in neither list.
 8. **Seeding is only safe because every key in both config schemas has a
-   default.** A seeded file written by an older harness must still parse when a
+   default.** A seeded file written by an older sailor must still parse when a
    later one adds a key. `shipped-templates.test.ts` asserts that
    `version: 1` alone validates; do not add a required key to either schema.
-9. **`buildHarnessProject()` creates `.harness/` and nothing inside it.** Pass
-   `files: { ".harness/…": … }` for content. The directory itself is what says
+9. **`buildSailorProject()` creates `.sailor/` and nothing inside it.** Pass
+   `files: { ".sailor/…": … }` for content. The directory itself is what says
    a project is installed - `withTaskLock` reports `not-installed` without it -
    so a fixture standing in for an uninstalled project is a bare
    `createTempDirectory`, not this.
@@ -285,7 +285,7 @@ rest.
     `tests/helpers/git.ts` passes `-c user.name` / `-c user.email` per
     invocation instead. A fixture that wrote them with `git config` put them in
     _this_ repository's `.git/config`, where they went on to author four real
-    commits as "Harness Test" before anyone noticed.
+    commits as "Sailor Test" before anyone noticed.
 14. **This is a Git worktree and the stash stack is shared.** Never use bare
     `git stash` / `git stash pop`. Prefer a temporary WIP commit.
 15. **Run the suite under a simulated hook environment before committing.**
@@ -307,7 +307,7 @@ rest.
 
 Verbatim from `docs/handoff/rule-enforcement.md`, plus defect 2 above.
 
-Use `yaml` for `.harness/tasks.yaml`. Add robust atomic writing and locking;
+Use `yaml` for `.sailor/tasks.yaml`. Add robust atomic writing and locking;
 prefer reviewed libraries such as `proper-lockfile` and `write-file-atomic`
 rather than inventing an incomplete lock protocol. `writeFileAtomic` already
 handles the atomic rename for single managed files, but it takes no lock.
@@ -328,21 +328,21 @@ source and target agent, the resolved rule-set SHA-256, gate report IDs and
 artifact paths, timestamps, attempt number, failure details, and the
 next-agent context path. Reject stale-revision writes.
 
-Contexts live at `.harness/state/runs/<run-id>/agents/<agent-id>/` and must
+Contexts live at `.sailor/state/runs/<run-id>/agents/<agent-id>/` and must
 never be shared by reference as one mutable global context.
 
 `tasks.yaml` is deliberately **not** ignored by the shipped `.gitignore`, so
 task state is reviewable in a pull request. `state/` is ignored.
 
 C0 already answered the question C1 has to answer again: `tasks.yaml` is
-neither managed nor seeded — the harness writes it continuously and the project
+neither managed nor seeded — the sailor writes it continuously and the project
 never hand-edits it. It should not go through `planInstallation` at all.
 
 ## What C1-C3 added
 
 | Module                          | Public surface                                                                                                                                                            |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/harness/project-path.ts`   | `projectRelativePathSchema`, `projectRelativeGlobSchema`                                                                                                                  |
+| `src/sailor/project-path.ts`    | `projectRelativePathSchema`, `projectRelativeGlobSchema`                                                                                                                  |
 | `src/tasks/task-schema.ts`      | `TASK_STATES`, `WORKFLOW_STATES`, `INTERRUPTED_STATES`, `taskSchema`, `taskFileSchema`, `transitionRecordSchema`, `taskFailureSchema`, `runIdSchema`, `taskIdSchema`      |
 | `src/tasks/task-file.ts`        | `readTaskFile`, `writeTaskFile`, `taskFilePath`, `emptyTaskFile`, `findTask`, `requireTask`, `TASK_FILE_SOURCE`                                                           |
 | `src/tasks/task-lock.ts`        | `withTaskLock`, `TASK_LOCK_DEFAULTS`                                                                                                                                      |
@@ -351,8 +351,8 @@ never hand-edits it. It should not go through `planInstallation` at all.
 | `src/tasks/transition-task.ts`  | `createTask`, `approveSpecification`, `transitionTask`, `createDefaultRunId`                                                                                              |
 | `src/tasks/agent-context.ts`    | `buildAgentContext`, `writeAgentContext`, `readAgentContext`, `agentContextDirectory`, `agentContextFile`, `agentContextSchema`, `contextHandoffSchema`                   |
 
-`HARNESS_ERROR_KINDS` gained `invalid-transition`, `stale-task-revision`,
-`task-lock-failed` (all exit 5) and `unknown-task` (exit 3). `HARNESS_PATHS`
+`SAILOR_ERROR_KINDS` gained `invalid-transition`, `stale-task-revision`,
+`task-lock-failed` (all exit 5) and `unknown-task` (exit 3). `SAILOR_PATHS`
 gained `tasks` and `runs`. `proper-lockfile` is a new runtime dependency;
 `@types/proper-lockfile` is a new dev dependency. `npm audit` reports zero
 vulnerabilities.
@@ -372,7 +372,7 @@ here rather than left to be re-derived from the code.
    stopped at an active state.
 
 2. **A retry mints a new run id.** The context layout
-   `.harness/state/runs/<run-id>/agents/<agent-id>/` is fixed by the design and
+   `.sailor/state/runs/<run-id>/agents/<agent-id>/` is fixed by the design and
    has no room for an attempt, so reusing the run would have a second attempt
    overwrite the record of the first. A transition out of `failed` therefore
    starts a new run; resuming out of `blocked` keeps the old one, because
@@ -409,7 +409,7 @@ here rather than left to be re-derived from the code.
    installer and the task store different semantics for one operation. What
    that library had and this did not was the flush, so `writeFileAtomic` now
    `fsync`s the temporary before the rename - which is exactly what
-   `write-file-atomic` does - and moved to `src/harness/`, since task state has
+   `write-file-atomic` does - and moved to `src/sailor/`, since task state has
    no business importing from `src/install/`. `proper-lockfile`'s default
    `onCompromised` throws from a timer callback, which is an uncaught exception
    that takes the process down; it is replaced with one that records the loss
@@ -419,7 +419,7 @@ here rather than left to be re-derived from the code.
 
 | Step | Subject                                               | State |
 | ---- | ----------------------------------------------------- | ----- |
-| B3   | `Install the harness into a project idempotently`     | done  |
+| B3   | `Install the sailor into a project idempotently`      | done  |
 | B4   | `Dispatch Git hooks without discarding existing ones` | done  |
 | C0   | `Separate seeded configuration from managed files`    | done  |
 | C1   | `Store task state atomically`                         | done  |
@@ -452,14 +452,14 @@ it:
   they are written into every context and nothing reads them;
 - a completion guard for acceptance criterion 10;
 - `config/models.yaml` and `config/providers.yaml`;
-- whatever drives all of it: a `harness task` command set, or a runtime the
+- whatever drives all of it: a `sailor task` command set, or a runtime the
   adapters are called from. Two Node scripts were enough to demonstrate
   criterion 9; they are not a product.
 
 ## Starting prompt
 
-> Continue Agentic Harness in the worktree
-> `<PROJECTS>/agentic-harness-codex-basic-structure`. Start from `main` and cut
+> Continue Sailor in the worktree
+> `<PROJECTS>/sailor-codex-basic-structure`. Start from `main` and cut
 > a new branch for this work. Read `AGENTS.md`, `README.md`,
 > `docs/handoff/rule-enforcement.md` and `docs/handoff/milestone-c.md`
 > completely before writing code. Milestones A, B and C are committed and

@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { stringify } from "yaml";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import {
   TASK_FILE_SOURCE,
   emptyTaskFile,
@@ -14,7 +14,7 @@ import {
   writeTaskFile,
 } from "../../../src/tasks/task-file.js";
 import { captureError } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { buildTask, buildTaskFile } from "../../helpers/tasks.js";
 import {
   createTempDirectory,
@@ -26,26 +26,26 @@ afterEach(() => {
 });
 
 describe("taskFilePath", () => {
-  it("puts task state inside the harness directory, not under state/", () => {
+  it("puts task state inside the sailor directory, not under state/", () => {
     // `state/` is gitignored. Task state is deliberately reviewable, so it
     // lives beside the rules rather than with the transcripts.
     expect(taskFilePath("/tmp/project")).toBe(
-      join("/tmp/project", ".harness", "tasks.yaml")
+      join("/tmp/project", ".sailor", "tasks.yaml")
     );
-    expect(TASK_FILE_SOURCE).toBe(".harness/tasks.yaml");
+    expect(TASK_FILE_SOURCE).toBe(".sailor/tasks.yaml");
   });
 });
 
 describe("readTaskFile", () => {
   it("reads a project that has never run a task as having none", () => {
-    expect(readTaskFile(buildHarnessProject())).toEqual({
+    expect(readTaskFile(buildSailorProject())).toEqual({
       version: 1,
       tasks: [],
     });
   });
 
   it("never hands two callers the same tasks array", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const first = readTaskFile(root);
 
     first.tasks.push(buildTask());
@@ -54,7 +54,7 @@ describe("readTaskFile", () => {
   });
 
   it("round-trips a task file through the filesystem", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const file = buildTaskFile(
       buildTask({
         state: "implementing",
@@ -62,7 +62,7 @@ describe("readTaskFile", () => {
         agentId: "coder",
         approvedAt: "2026-08-27T00:02:00.000Z",
         approvedBy: "a-reviewer",
-        contextPath: ".harness/state/runs/run-1/agents/coder",
+        contextPath: ".sailor/state/runs/run-1/agents/coder",
       })
     );
 
@@ -72,13 +72,13 @@ describe("readTaskFile", () => {
   });
 
   it("reports the file and the line when the yaml is broken", () => {
-    const root = buildHarnessProject({
-      files: { ".harness/tasks.yaml": "version: 1\ntasks:\n  - id: [\n" },
+    const root = buildSailorProject({
+      files: { ".sailor/tasks.yaml": "version: 1\ntasks:\n  - id: [\n" },
     });
-    const error = captureError(() => readTaskFile(root), HarnessError);
+    const error = captureError(() => readTaskFile(root), SailorError);
 
     expect(error.kind).toBe("invalid-config");
-    expect(error.message).toContain(".harness/tasks.yaml");
+    expect(error.message).toContain(".sailor/tasks.yaml");
   });
 
   it("refuses a task interrupted in a state no work happens in", () => {
@@ -87,9 +87,9 @@ describe("readTaskFile", () => {
     // and including the one named here, so `completed` would open the entire
     // pipeline and let a task reach done without entering `implementing` or
     // `qa`.
-    const root = buildHarnessProject({
+    const root = buildSailorProject({
       files: {
-        ".harness/tasks.yaml": stringify({
+        ".sailor/tasks.yaml": stringify({
           version: 1,
           tasks: [
             buildTask({
@@ -100,19 +100,19 @@ describe("readTaskFile", () => {
         }),
       },
     });
-    const error = captureError(() => readTaskFile(root), HarnessError);
+    const error = captureError(() => readTaskFile(root), SailorError);
 
     expect(error.kind).toBe("invalid-config");
     expect(error.details.join("\n")).toContain("interruptedFrom");
   });
 
   it("refuses task state that does not validate", () => {
-    const root = buildHarnessProject({
+    const root = buildSailorProject({
       files: {
-        ".harness/tasks.yaml": "version: 1\ntasks:\n  - id: add-login\n",
+        ".sailor/tasks.yaml": "version: 1\ntasks:\n  - id: add-login\n",
       },
     });
-    const error = captureError(() => readTaskFile(root), HarnessError);
+    const error = captureError(() => readTaskFile(root), SailorError);
 
     expect(error.kind).toBe("invalid-config");
     expect(error.details.join("\n")).toContain("title");
@@ -121,66 +121,66 @@ describe("readTaskFile", () => {
 
 describe("writeTaskFile", () => {
   it("writes yaml a person can read in a pull request", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     writeTaskFile(root, buildTaskFile(buildTask()));
 
-    const text = readFileSync(join(root, ".harness", "tasks.yaml"), "utf8");
+    const text = readFileSync(join(root, ".sailor", "tasks.yaml"), "utf8");
 
-    expect(text).toContain("# Managed by Agentic Harness");
+    expect(text).toContain("# Managed by Sailor");
     expect(text).toContain("version: 1");
     expect(text).toContain("  - id: add-login");
     expect(text.endsWith("\n")).toBe(true);
   });
 
-  it("writes an empty file into a project that has the harness installed", () => {
+  it("writes an empty file into a project that has the sailor installed", () => {
     // The name this carried claimed it covered an uninstalled project, while
-    // `buildHarnessProject()` creates `.harness/` before it runs. The case it
+    // `buildSailorProject()` creates `.sailor/` before it runs. The case it
     // claimed is below, and it is not the behaviour the name implied.
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     writeTaskFile(root, emptyTaskFile());
 
-    expect(
-      readFileSync(join(root, ".harness", "tasks.yaml"), "utf8")
-    ).toContain("tasks: []");
+    expect(readFileSync(join(root, ".sailor", "tasks.yaml"), "utf8")).toContain(
+      "tasks: []"
+    );
   });
 
-  it("creates `.harness/` in a project that has none, unlike the lock", () => {
+  it("creates `.sailor/` in a project that has none, unlike the lock", () => {
     // Documenting a real asymmetry rather than asserting it is correct.
-    // `withTaskLock` refuses a project with no harness installed, on the
+    // `withTaskLock` refuses a project with no sailor installed, on the
     // reasoning that a directory holding task state and no agents, rules or
     // hooks is not one anybody asked for. This primitive sits a layer below
     // that guard and still creates it, so reaching for `writeTaskFile`
     // directly bypasses the refusal. Anything that changes here should change
     // deliberately, and the two layers should agree.
-    const root = createTempDirectory("agentic-harness-uninstalled-");
+    const root = createTempDirectory("sailor-uninstalled-");
 
-    expect(existsSync(join(root, ".harness"))).toBe(false);
+    expect(existsSync(join(root, ".sailor"))).toBe(false);
 
     writeTaskFile(root, emptyTaskFile());
 
-    expect(existsSync(join(root, ".harness", "tasks.yaml"))).toBe(true);
+    expect(existsSync(join(root, ".sailor", "tasks.yaml"))).toBe(true);
   });
 
   it("refuses to write state that could not be read back", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const error = captureError(() => {
       writeTaskFile(root, buildTaskFile(buildTask(), buildTask()));
-    }, HarnessError);
+    }, SailorError);
 
     expect(error.kind).toBe("invalid-config");
-    expect(error.message).toContain(".harness/tasks.yaml");
+    expect(error.message).toContain(".sailor/tasks.yaml");
     expect(error.details.join("\n")).toContain("more than once");
   });
 
   it("does not fold a long title into a shape the diff cannot show", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const title = `Rework ${"the authentication flow ".repeat(6)}end to end`;
 
     writeTaskFile(root, buildTaskFile(buildTask({ title })));
 
-    const text = readFileSync(join(root, ".harness", "tasks.yaml"), "utf8");
+    const text = readFileSync(join(root, ".sailor", "tasks.yaml"), "utf8");
 
     expect(text).toContain(`title: ${title}`);
     expect(readTaskFile(root).tasks[0]?.title).toBe(title);
@@ -203,7 +203,7 @@ describe("requireTask", () => {
   it("names the task and what the file does hold", () => {
     const error = captureError(
       () => requireTask(buildTaskFile(buildTask()), "other"),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("unknown-task");

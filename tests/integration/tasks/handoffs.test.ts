@@ -27,7 +27,7 @@ const definitionOf = (id: string): AgentDefinition => {
   const definition = definitions.get(id);
 
   if (definition === undefined) {
-    throw new Error(`the harness ships no definition for ${id}`);
+    throw new Error(`the sailor ships no definition for ${id}`);
   }
 
   return definition;
@@ -45,12 +45,12 @@ const runPipeline = async (): Promise<string> => {
 };
 
 const contextDirectory = (id: string): string =>
-  `.harness/state/runs/${RUN_ID}/agents/${id}`;
+  `.sailor/state/runs/${RUN_ID}/agents/${id}`;
 
 describe("agent contexts across a run", () => {
   it("gives each of the six shipped agents its own context and tool policy", async () => {
     const root = await runPipeline();
-    const agentsDirectory = join(root, ".harness/state/runs", RUN_ID, "agents");
+    const agentsDirectory = join(root, ".sailor/state/runs", RUN_ID, "agents");
 
     expect(readdirSync(agentsDirectory).sort()).toEqual([
       ...BUILT_IN_AGENT_IDS,

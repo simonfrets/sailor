@@ -1,11 +1,11 @@
 import { join } from "node:path";
 
 import { formatInstallResult } from "../../../src/cli/format-install-result.js";
-import type { InstallHarnessResult } from "../../../src/install/install-harness.js";
+import type { InstallSailorResult } from "../../../src/install/install-sailor.js";
 
-const RESULT: InstallHarnessResult = {
+const RESULT: InstallSailorResult = {
   projectRoot: join("/tmp", "host"),
-  harnessVersion: "0.1.0",
+  sailorVersion: "0.1.0",
   created: [],
   replaced: [],
   kept: [],
@@ -19,13 +19,13 @@ const RESULT: InstallHarnessResult = {
   gitHooksPathChanged: false,
 };
 
-const format = (overrides: Partial<InstallHarnessResult> = {}): string =>
+const format = (overrides: Partial<InstallSailorResult> = {}): string =>
   formatInstallResult({ ...RESULT, ...overrides });
 
 describe("formatInstallResult", () => {
-  it("names the harness version and the directory it owns", () => {
+  it("names the sailor version and the directory it owns", () => {
     expect(format()).toContain(
-      `Harness 0.1.0 installed in ${join("/tmp", "host", ".harness")}`
+      `Sailor 0.1.0 installed in ${join("/tmp", "host", ".sailor")}`
     );
   });
 
@@ -73,7 +73,7 @@ describe("formatInstallResult", () => {
 
   it("says whether the private dependency tree was resolved", () => {
     expect(format()).toContain(
-      "Runtime dependencies resolved in .harness/node_modules"
+      "Runtime dependencies resolved in .sailor/node_modules"
     );
     expect(format({ dependenciesInstalled: false })).toContain(
       "Runtime dependencies were not installed"
@@ -89,7 +89,7 @@ describe("formatInstallResult", () => {
       gitHooksPathChanged: true,
     });
 
-    expect(text).toContain("git now dispatches 2 hooks through .harness/hooks");
+    expect(text).toContain("git now dispatches 2 hooks through .sailor/hooks");
     expect(text).toContain("  commit-msg runs .git/hooks/commit-msg first");
     expect(text).toContain("  pre-commit\n");
   });
@@ -97,7 +97,7 @@ describe("formatInstallResult", () => {
   it("does not claim to have changed a hooks path it left alone", () => {
     expect(
       format({ hooks: [{ hook: "pre-commit", chained: null }] })
-    ).toContain("git dispatches 1 hook through .harness/hooks");
+    ).toContain("git dispatches 1 hook through .sailor/hooks");
   });
 
   it("records where the project's own hooks path pointed", () => {
@@ -117,7 +117,7 @@ describe("formatInstallResult", () => {
     });
 
     expect(text).toContain("--no-verify");
-    expect(text).toContain(".harness/ci/github-actions.yml");
+    expect(text).toContain(".sailor/ci/github-actions.yml");
     expect(text).toContain(".github/workflows/");
   });
 
@@ -156,7 +156,7 @@ describe("formatInstallResult", () => {
     expect(text).toContain("  + rules/base.yaml");
     expect(text).toContain("git hooks were left alone");
     expect(text).toContain("  npm error code ETARGET");
-    expect(text).toContain("re-run `harness init`");
+    expect(text).toContain("re-run `sailor init`");
   });
 
   it("pluralises the file count", () => {

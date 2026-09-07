@@ -37,7 +37,7 @@ runCli({
   },
   (error: unknown) => {
     process.stderr.write(
-      `harness: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`
+      `sailor: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`
     );
     process.exitCode = CLI_EXIT_CODES.failure;
   }

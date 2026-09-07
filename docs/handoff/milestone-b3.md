@@ -4,7 +4,7 @@
 
 ---
 
-# Milestone B3 handoff: idempotent installation and `harness doctor`
+# Milestone B3 handoff: idempotent installation and `sailor doctor`
 
 ## How to start
 
@@ -16,9 +16,9 @@ B4 scope still stands.
 
 ## Where things stand
 
-- Worktree: `<PROJECTS>/agentic-harness-codex-basic-structure`
+- Worktree: `<PROJECTS>/sailor-codex-basic-structure`
 - Branch: `codex/basic-structure`
-- HEAD: `3c93e5b Ship agent definitions and harness configuration`
+- HEAD: `3c93e5b Ship agent definitions and sailor configuration`
 - Nothing pushed; no remote for this branch.
 - **The working tree is dirty and does not pass `npm run test:coverage`.** Five
   untracked modules under `src/install/` and two untracked test files are
@@ -30,11 +30,11 @@ modules have no tests yet. This is expected, not a defect to hunt.
 
 ### Committed
 
-| Commit    | Subject                                                           |
-| --------- | ----------------------------------------------------------------- |
-| `5cef0c2` | Add command line entry point (B1)                                 |
-| `fa05921` | Ship .harness configuration templates (B2)                        |
-| `3c93e5b` | Ship agent definitions and harness configuration (B2, completion) |
+| Commit    | Subject                                                          |
+| --------- | ---------------------------------------------------------------- |
+| `5cef0c2` | Add command line entry point (B1)                                |
+| `fa05921` | Ship .sailor configuration templates (B2)                        |
+| `3c93e5b` | Ship agent definitions and sailor configuration (B2, completion) |
 
 B1 and B2 are complete. 319 tests pass across 38 suites.
 
@@ -46,7 +46,7 @@ B1 and B2 are complete. 319 tests pass across 38 suites.
 | `src/install/install-manifest.ts`             | done, tested, 100%    |
 | `src/install/plan-installation.ts`            | written, **no tests** |
 | `src/install/runtime-dependencies.ts`         | written, **no tests** |
-| `src/install/install-harness.ts`              | written, **no tests** |
+| `src/install/install-sailor.ts`               | written, **no tests** |
 | `tests/unit/install/atomic-write.test.ts`     | done                  |
 | `tests/unit/install/install-manifest.test.ts` | done                  |
 
@@ -74,11 +74,11 @@ Scope calls made deliberately, so they are not reopened:
   D**, which validates provider flags against a real CLI `--help`. Guessing
   them now would design the adapter contract before an adapter exists.
 - `tasks.yaml` belongs to Milestone C.
-- `bin/harness`, `hooks/`, `runtime/`, `node_modules/`, `version.json` are
+- `bin/sailor`, `hooks/`, `runtime/`, `node_modules/`, `version.json` are
   installer-generated, not templates.
 - Nothing reads an installed copy of these files yet.
   `discoverProjectProfile` still hardcodes `validationMode:
-"native-plus-harness"` at `src/project/discover-project-profile.ts:162`.
+"native-plus-sailor"` at `src/project/discover-project-profile.ts:162`.
   Wiring `config/project.yaml` into it is open work, and is a behaviour change
   rather than a template change.
 
@@ -87,12 +87,12 @@ Scope calls made deliberately, so they are not reopened:
 Do not re-litigate these; change them only with a reason written down.
 
 1. **npm always drives the private tree**, whatever the host project uses.
-   Resolving `.harness/` with the project's manager would apply that manager's
-   workspace rules, which in a monorepo hoists the harness's dependencies into
+   Resolving `.sailor/` with the project's manager would apply that manager's
+   workspace rules, which in a monorepo hoists the sailor's dependencies into
    the workspace root — the exact host contamination the boundary exists to
    prevent. npm 10 is already a stated requirement.
 2. **Write order is files, then manifest, then dependencies.** An install
-   interrupted by a failing `npm install` must leave a project the harness
+   interrupted by a failing `npm install` must leave a project the sailor
    still recognises as its own, so re-running repairs it instead of reporting
    every file it just wrote as an unmanaged conflict.
 3. **Orphaned managed files are reported, never deleted.** Deleting a project
@@ -102,9 +102,9 @@ Do not re-litigate these; change them only with a reason written down.
    one on each re-run.
 5. **`keep` wins when the file on disk already equals the template**, whatever
    the manifest says.
-6. **`.harness/package.json` is a managed file in the manifest** even though it
+6. **`.sailor/package.json` is a managed file in the manifest** even though it
    is generated rather than copied from `templates/`.
-7. **`bin/harness` is not written yet.** It is not in B3's bullet list, and B4
+7. **`bin/sailor` is not written yet.** It is not in B3's bullet list, and B4
    is what needs it.
 
 The planner's decision table, in order:
@@ -127,9 +127,9 @@ The planner's decision table, in order:
    `src/cli/default-commands.ts`. `init` already parses, including `--update`;
    `runCli` reports an unregistered command as unavailable, which is what
    happens today.
-3. **`harness doctor`**: Node, npm, Git, Bash, config validity, runtime
+3. **`sailor doctor`**: Node, npm, Git, Bash, config validity, runtime
    dependencies, and hook reachability. Hook reachability has to degrade
-   gracefully — B4 is what installs hooks, so "no harness hooks installed" is a
+   gracefully — B4 is what installs hooks, so "no sailor hooks installed" is a
    finding, not a crash.
 4. **Barrel exports** in `src/index.ts` and the matching `PUBLIC_API` entries
    in `tests/unit/index.test.ts`.
@@ -141,14 +141,14 @@ Before changing hooks, record the existing local `core.hooksPath`, the resolved
 default `.git/hooks/pre-commit` and `pre-push` paths, and any detected Husky or
 other hook runner.
 
-If hooks already exist, generate a `.harness/hooks/` dispatcher that runs the
-preserved hook **and then** the harness gate. Abort if safe chaining cannot be
+If hooks already exist, generate a `.sailor/hooks/` dispatcher that runs the
+preserved hook **and then** the sailor gate. Abort if safe chaining cannot be
 proven; never silently discard an existing hook. `config/hooks.yaml` already
 encodes this as `onExistingHook: chain | abort`, with no `replace`.
 
 The pre-commit endpoint runs `gate pre-commit`; pre-push runs `gate pre-push`.
 Test: no prior hook, prior relative hook path, prior absolute hook path,
-failing prior hook, failing harness gate, and Git worktrees.
+failing prior hook, failing sailor gate, and Git worktrees.
 
 ## Traps this repository will spring on you
 
@@ -172,17 +172,17 @@ rest were found the hard way in this session.
    `src/cli/index.ts` is 0% by design — it is the bin entry, and importing it
    under Jest would crash on `import.meta`. The realistic ceiling is ~98.75%
    overall against thresholds of 90/90/90/80. Do not chase the last 1.25%.
-6. **`tests/unit/install/harness-templates.test.ts` asserts the exact list of
+6. **`tests/unit/install/sailor-templates.test.ts` asserts the exact list of
    installed template paths.** Adding a template file fails it on purpose. The
    list is currently 13 entries.
-7. **`buildHarnessProject()` does not create `.harness/`.** It only makes
-   directories for the fixture keys you pass. Writing into `.harness/` with a
+7. **`buildSailorProject()` does not create `.sailor/`.** It only makes
+   directories for the fixture keys you pass. Writing into `.sailor/` with a
    bare `writeFileSync` after calling it with no arguments throws `ENOENT`;
-   pass `files: { ".harness/…": … }` instead. This cost a red test already.
+   pass `files: { ".sailor/…": … }` instead. This cost a red test already.
 8. **Zod's `z.array()` output type is mutable.** A `readonly T[]` will not
    assign to `InstallManifest["managedFiles"]`. Type the local as `T[]`.
-9. **`agentic-harness` is not published to npm.** `npm install` inside
-   `.harness/` cannot resolve the dependency in a real run today. Tests assert
+9. **`sailor` is not published to npm.** `npm install` inside
+   `.sailor/` cannot resolve the dependency in a real run today. Tests assert
    the argument vector and never spawn a real install, per acceptance criterion
    12, so this does not block B3 — but do not claim a working end-to-end
    install until the package resolves.
@@ -205,9 +205,9 @@ rest were found the hard way in this session.
 | Step | Subject                                               | State |
 | ---- | ----------------------------------------------------- | ----- |
 | B1   | `Add command line entry point`                        | done  |
-| B2   | `Ship .harness configuration templates`               | done  |
-| B2   | `Ship agent definitions and harness configuration`    | done  |
-| B3   | `Install the harness into a project idempotently`     | open  |
+| B2   | `Ship .sailor configuration templates`                | done  |
+| B2   | `Ship agent definitions and sailor configuration`     | done  |
+| B3   | `Install the sailor into a project idempotently`      | open  |
 | B4   | `Dispatch Git hooks without discarding existing ones` | open  |
 
 ## Completion gate
@@ -220,9 +220,9 @@ npm pack --dry-run
 ```
 
 Then demonstrate, against a throwaway Git repository, acceptance criteria 1–4
-from the A–D handoff: a TypeScript project installs the harness without its
+from the A–D handoff: a TypeScript project installs the sailor without its
 root `package.json` or ESLint config changing; the footprint is confined to
-`.harness/` plus local Git config; existing hooks still run in their original
+`.sailor/` plus local Git config; existing hooks still run in their original
 order; and a custom YAML rule changes both the compiled policy and the phase
 gates with no TypeScript change.
 
@@ -230,13 +230,13 @@ Report any deviation directly. Do not describe partial work as complete.
 
 ## Starting prompt
 
-> Continue Agentic Harness on branch `codex/basic-structure` in the worktree
-> `<PROJECTS>/agentic-harness-codex-basic-structure`. Read
+> Continue Sailor on branch `codex/basic-structure` in the worktree
+> `<PROJECTS>/sailor-codex-basic-structure`. Read
 > `AGENTS.md`, `README.md`, `docs/handoff/rule-enforcement.md`, and
 > `docs/handoff/milestone-b3.md` completely before writing code. Milestones A,
 > B1 and B2 are committed. The working tree carries uncommitted B3 work:
 > `atomic-write.ts` and `install-manifest.ts` are done and tested;
-> `plan-installation.ts`, `runtime-dependencies.ts` and `install-harness.ts`
+> `plan-installation.ts`, `runtime-dependencies.ts` and `install-sailor.ts`
 > are written but have no tests, so `npm run test:coverage` currently fails at
 > 89.91%. Finish B3 — tests for those three modules, the `init` and `doctor`
 > commands, barrel exports and `PUBLIC_API` — then B4. Do not build task state

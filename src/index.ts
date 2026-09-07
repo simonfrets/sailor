@@ -1,41 +1,41 @@
-import { HARNESS_DIRECTORY } from "./harness/layout.js";
+import { SAILOR_DIRECTORY } from "./sailor/layout.js";
 
-export interface HarnessPackageMetadata {
-  readonly directory: typeof HARNESS_DIRECTORY;
-  readonly name: "agentic-harness";
+export interface SailorPackageMetadata {
+  readonly directory: typeof SAILOR_DIRECTORY;
+  readonly name: "sailor";
 }
 
-export const harnessPackageMetadata = {
-  directory: HARNESS_DIRECTORY,
-  name: "agentic-harness",
-} as const satisfies HarnessPackageMetadata;
+export const sailorPackageMetadata = {
+  directory: SAILOR_DIRECTORY,
+  name: "sailor",
+} as const satisfies SailorPackageMetadata;
 
 export {
-  HARNESS_DIRECTORY,
-  HARNESS_GIT_HOOKS_PATH,
-  HARNESS_PATHS,
-  harnessPath,
-} from "./harness/layout.js";
+  SAILOR_DIRECTORY,
+  SAILOR_GIT_HOOKS_PATH,
+  SAILOR_PATHS,
+  sailorPath,
+} from "./sailor/layout.js";
 export {
-  HARNESS_ERROR_KINDS,
-  HarnessError,
+  SAILOR_ERROR_KINDS,
+  SailorError,
   describeFailure,
-} from "./harness/harness-error.js";
-export type { HarnessErrorKind } from "./harness/harness-error.js";
+} from "./sailor/sailor-error.js";
+export type { SailorErrorKind } from "./sailor/sailor-error.js";
 export {
   readPackageRepository,
   readPackageVersion,
-} from "./harness/package-version.js";
-export { readTextFileIfPresent } from "./harness/read-text-file.js";
-export { writeFileAtomic } from "./harness/atomic-write.js";
-export { resolveProjectRoot } from "./harness/resolve-project-root.js";
-export type { ResolveProjectRootOptions } from "./harness/resolve-project-root.js";
-export { loadHarnessRuleSet } from "./harness/load-harness-rule-set.js";
-export type { LoadHarnessRuleSetOptions } from "./harness/load-harness-rule-set.js";
+} from "./sailor/package-version.js";
+export { readTextFileIfPresent } from "./sailor/read-text-file.js";
+export { writeFileAtomic } from "./sailor/atomic-write.js";
+export { resolveProjectRoot } from "./sailor/resolve-project-root.js";
+export type { ResolveProjectRootOptions } from "./sailor/resolve-project-root.js";
+export { loadSailorRuleSet } from "./sailor/load-sailor-rule-set.js";
+export type { LoadSailorRuleSetOptions } from "./sailor/load-sailor-rule-set.js";
 export {
   projectRelativeGlobSchema,
   projectRelativePathSchema,
-} from "./harness/project-path.js";
+} from "./sailor/project-path.js";
 
 export {
   BUILT_IN_AGENT_IDS,
@@ -217,12 +217,12 @@ export type {
 
 export {
   SEEDED_TEMPLATE_PATHS,
-  harnessTemplateRoot,
+  sailorTemplateRoot,
   isSeededTemplate,
-  listHarnessTemplateFiles,
-  readHarnessTemplateFile,
-} from "./install/harness-templates.js";
-export type { HarnessTemplateFile } from "./install/harness-templates.js";
+  listSailorTemplateFiles,
+  readSailorTemplateFile,
+} from "./install/sailor-templates.js";
+export type { SailorTemplateFile } from "./install/sailor-templates.js";
 export {
   INSTALL_MANIFEST_VERSION,
   MANAGED_FILE_KINDS,
@@ -253,23 +253,23 @@ export type {
   PlannedFileSource,
 } from "./install/plan-installation.js";
 export {
-  HARNESS_PACKAGE_NAME,
+  SAILOR_PACKAGE_NAME,
   RUNTIME_INSTALL_ARGV,
   RUNTIME_INSTALL_TIMEOUT_MS,
   RUNTIME_PACKAGE_NAME,
   buildRuntimePackageManifest,
-  harnessReleaseTarballUrl,
+  sailorReleaseTarballUrl,
   installRuntimeDependencies,
 } from "./install/runtime-dependencies.js";
 export type {
   InstallRuntimeDependenciesOptions,
   RuntimePackageManifestInput,
 } from "./install/runtime-dependencies.js";
-export { installHarness } from "./install/install-harness.js";
+export { installSailor } from "./install/install-sailor.js";
 export type {
-  InstallHarnessOptions,
-  InstallHarnessResult,
-} from "./install/install-harness.js";
+  InstallSailorOptions,
+  InstallSailorResult,
+} from "./install/install-sailor.js";
 export {
   HOOKS_PATH_SCOPES,
   discoverHookEnvironment,
@@ -284,7 +284,7 @@ export type {
 export {
   EXECUTABLE_MODE,
   LAUNCHER_PATH,
-  buildHarnessLauncher,
+  buildSailorLauncher,
   buildHookDispatcher,
   escapeForDoubleQuotes,
   hookScriptPath,
@@ -298,15 +298,15 @@ export {
   REQUIRED_NODE_VERSION,
   REQUIRED_TOOLS,
   WORKFLOW_DIRECTORY,
-  diagnoseHarness,
+  diagnoseSailor,
   versionOrder,
-} from "./install/diagnose-harness.js";
+} from "./install/diagnose-sailor.js";
 export type {
-  DiagnoseHarnessOptions,
+  DiagnoseSailorOptions,
   Diagnostic,
   DiagnosticStatus,
-  HarnessDiagnosis,
-} from "./install/diagnose-harness.js";
+  SailorDiagnosis,
+} from "./install/diagnose-sailor.js";
 
 export {
   INTERRUPTED_STATES,
@@ -395,7 +395,7 @@ export type {
   CliInvocation,
   CliParseResult,
 } from "./cli/parse-cli-arguments.js";
-export { CLI_EXIT_CODES, exitCodeForHarnessError } from "./cli/exit-codes.js";
+export { CLI_EXIT_CODES, exitCodeForSailorError } from "./cli/exit-codes.js";
 export { runCli } from "./cli/run-cli.js";
 export type {
   CliCommandHandler,

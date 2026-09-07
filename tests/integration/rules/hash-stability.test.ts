@@ -106,8 +106,8 @@ afterEach(() => {
 
 describe("rule-set hash stability", () => {
   it("is identical for the same rules written two ways in two directories", () => {
-    const directoryA = createTempDirectory("agentic-harness-rules-a-");
-    const directoryB = createTempDirectory("agentic-harness-rules-b-");
+    const directoryA = createTempDirectory("sailor-rules-a-");
+    const directoryB = createTempDirectory("sailor-rules-b-");
 
     const hashA = hashFromDirectory(directoryA, LAYOUT_A);
     const hashB = hashFromDirectory(
@@ -123,7 +123,7 @@ describe("rule-set hash stability", () => {
     // Asserting the *digest* holds no path could never fail: a SHA-256 hex
     // string cannot contain a path separator. What can fail is the canonical
     // content the digest is taken over.
-    const directory = createTempDirectory("agentic-harness-rules-c-");
+    const directory = createTempDirectory("sailor-rules-c-");
     const ruleSet = ruleSetFromDirectory(directory, LAYOUT_A);
 
     const canonical = canonicalStringify(canonicalRuleSet(ruleSet.rules));
@@ -136,8 +136,8 @@ describe("rule-set hash stability", () => {
   });
 
   it("still differs when the rules genuinely differ", () => {
-    const directoryA = createTempDirectory("agentic-harness-rules-d-");
-    const directoryB = createTempDirectory("agentic-harness-rules-e-");
+    const directoryA = createTempDirectory("sailor-rules-d-");
+    const directoryB = createTempDirectory("sailor-rules-e-");
 
     const hashA = hashFromDirectory(directoryA, LAYOUT_A);
     const hashB = hashFromDirectory(

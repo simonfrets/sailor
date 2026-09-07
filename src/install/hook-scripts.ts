@@ -1,18 +1,18 @@
 import { isAbsolute } from "node:path";
 
 import { CLI_EXIT_CODES } from "../cli/exit-codes.js";
-import { HARNESS_DIRECTORY, HARNESS_PATHS } from "../harness/layout.js";
+import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
 import type { Phase } from "../rules/rule-schema.js";
-import { HARNESS_PACKAGE_NAME } from "./runtime-dependencies.js";
+import { SAILOR_PACKAGE_NAME } from "./runtime-dependencies.js";
 
 export const EXECUTABLE_MODE = 0o755;
 
-/** Path of the launcher inside the harness directory, with `/` separators. */
-export const LAUNCHER_PATH = "bin/harness";
+/** Path of the launcher inside the sailor directory, with `/` separators. */
+export const LAUNCHER_PATH = "bin/sailor";
 
-/** Path of one hook dispatcher inside the harness directory. */
+/** Path of one hook dispatcher inside the sailor directory. */
 export const hookScriptPath = (hook: string): string =>
-  `${HARNESS_PATHS.hooks}/${hook}`;
+  `${SAILOR_PATHS.hooks}/${hook}`;
 
 /**
  * Escapes a path for interpolation inside a double-quoted shell string.
@@ -32,26 +32,26 @@ const PREAMBLE = [
   // `dirname` on BASH_SOURCE rather than on $0: git invokes a hook by a path
   // that may be relative to the working tree root, and `cd` resolves it either
   // way, while $0 would be wrong the moment the script were sourced.
-  'harness_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"',
+  'sailor_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"',
 ];
 
 /**
- * The executable a project runs the harness with.
+ * The executable a project runs the sailor with.
  *
  * It resolves the CLI out of the private dependency tree rather than off the
  * caller's `PATH`, so a hook runs the version this project installed and not
  * whichever global one happens to be first.
  */
-export const buildHarnessLauncher = (): string =>
+export const buildSailorLauncher = (): string =>
   `${[
     SHEBANG,
-    `# The ${HARNESS_DIRECTORY} launcher. Managed by Agentic Harness; do not edit.`,
+    `# The ${SAILOR_DIRECTORY} launcher. Managed by Sailor; do not edit.`,
     ...PREAMBLE,
-    `entry="\${harness_directory}/node_modules/${HARNESS_PACKAGE_NAME}/dist/cli/index.js"`,
+    `entry="\${sailor_directory}/node_modules/${SAILOR_PACKAGE_NAME}/dist/cli/index.js"`,
     "",
     'if [ ! -f "${entry}" ]; then',
-    "  printf 'harness: the harness runtime is not installed in %s; run `harness init`\\n' \\",
-    '    "${harness_directory}" >&2',
+    "  printf 'sailor: the sailor runtime is not installed in %s; run `sailor init`\\n' \\",
+    '    "${sailor_directory}" >&2',
     `  exit ${String(CLI_EXIT_CODES.invalidConfig)}`,
     "fi",
     "",
@@ -87,13 +87,12 @@ const chainedAssignment = (chained: string): readonly string[] => [
     : `previous_hook="\${repository_root}/${escapeForDoubleQuotes(chained)}"`,
 ];
 
-const REPOSITORY_ROOT =
-  'repository_root="$(dirname -- "${harness_directory}")"';
+const REPOSITORY_ROOT = 'repository_root="$(dirname -- "${sailor_directory}")"';
 
 /**
  * Renders the dispatcher git runs for one hook.
  *
- * Installation points `core.hooksPath` at `.harness/hooks`, which means this
+ * Installation points `core.hooksPath` at `.sailor/hooks`, which means this
  * file becomes the only hook of its name git will run. Anything the project
  * already had is therefore invoked from here — first, with the same arguments
  * and the same standard input — because a hook that stopped running because a
@@ -102,7 +101,7 @@ const REPOSITORY_ROOT =
 export const buildHookDispatcher = (dispatcher: HookDispatcher): string => {
   const header = [
     SHEBANG,
-    `# The ${dispatcher.hook} dispatcher. Managed by Agentic Harness; do not edit.`,
+    `# The ${dispatcher.hook} dispatcher. Managed by Sailor; do not edit.`,
     ...PREAMBLE,
     REPOSITORY_ROOT,
   ];
@@ -112,7 +111,7 @@ export const buildHookDispatcher = (dispatcher: HookDispatcher): string => {
       ...header,
       ...chainedAssignment(dispatcher.chained),
       "",
-      "# No harness gate runs at this hook; the project's own hook is all there is.",
+      "# No sailor gate runs at this hook; the project's own hook is all there is.",
       'if [ -x "${previous_hook}" ]; then',
       '  exec "${previous_hook}" "$@"',
       "fi",
@@ -121,7 +120,7 @@ export const buildHookDispatcher = (dispatcher: HookDispatcher): string => {
 
   const gate = [
     "",
-    `exec "\${harness_directory}/${LAUNCHER_PATH}" gate ${dispatcher.phase}`,
+    `exec "\${sailor_directory}/${LAUNCHER_PATH}" gate ${dispatcher.phase}`,
   ];
 
   if (dispatcher.chained === null) {

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { hashManagedFile } from "../../../src/install/install-manifest.js";
 import type { InstallManifest } from "../../../src/install/install-manifest.js";
 import {
@@ -14,7 +14,7 @@ import type {
   PlannedFileSource,
 } from "../../../src/install/plan-installation.js";
 import { captureError } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
 afterEach(() => {
@@ -28,12 +28,12 @@ const desiredRule = (contents = SHIPPED): readonly PlannedFileSource[] => [
   { path: RULE, contents, kind: "managed" },
 ];
 
-/** A manifest recording the content the harness believes it wrote. */
+/** A manifest recording the content the sailor believes it wrote. */
 const manifestOf = (
   recorded: Readonly<Record<string, string>>
 ): InstallManifest => ({
   version: 1,
-  harnessVersion: "0.1.0",
+  sailorVersion: "0.1.0",
   installedAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
   managedFiles: Object.entries(recorded).map(([path, contents]) => ({
@@ -48,13 +48,13 @@ const manifestOf = (
 const actionsOf = (plan: InstallationPlan): readonly string[] =>
   plan.files.map((file) => `${file.action} ${file.path}`);
 
-const refuse = (input: Parameters<typeof planInstallation>[0]): HarnessError =>
-  captureError(() => planInstallation(input), HarnessError);
+const refuse = (input: Parameters<typeof planInstallation>[0]): SailorError =>
+  captureError(() => planInstallation(input), SailorError);
 
 describe("planInstallation", () => {
   it("creates a file that is absent", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject(),
+      projectRoot: buildSailorProject(),
       desired: desiredRule(),
       manifest: null,
       update: false,
@@ -67,8 +67,8 @@ describe("planInstallation", () => {
 
   it("keeps a file that already equals the shipped content", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: SHIPPED },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: SHIPPED },
       }),
       desired: desiredRule(),
       manifest: null,
@@ -79,12 +79,12 @@ describe("planInstallation", () => {
   });
 
   it("keeps an identical file even when the manifest records another hash", () => {
-    // The file on disk is what the harness would write, so replacing it would
+    // The file on disk is what the sailor would write, so replacing it would
     // change nothing; a stale manifest entry is not a reason to raise a
     // conflict a person cannot act on.
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: SHIPPED },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: SHIPPED },
       }),
       desired: desiredRule(),
       manifest: manifestOf({ [RULE]: "something else\n" }),
@@ -94,10 +94,10 @@ describe("planInstallation", () => {
     expect(actionsOf(plan)).toEqual([`keep ${RULE}`]);
   });
 
-  it("refuses a differing file the harness never installed", () => {
+  it("refuses a differing file the sailor never installed", () => {
     const error = refuse({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: "the project wrote this\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: "the project wrote this\n" },
       }),
       desired: desiredRule(),
       manifest: null,
@@ -106,14 +106,14 @@ describe("planInstallation", () => {
 
     expect(error.kind).toBe("unsafe-overwrite");
     expect(error.details).toEqual([
-      `.harness/${RULE} already exists and was not installed by the harness`,
+      `.sailor/${RULE} already exists and was not installed by the sailor`,
     ]);
   });
 
   it("refuses a managed file that was edited after it was installed", () => {
     const error = refuse({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: "locally tuned\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: "locally tuned\n" },
       }),
       desired: desiredRule(),
       manifest: manifestOf({ [RULE]: "previously shipped\n" }),
@@ -126,10 +126,10 @@ describe("planInstallation", () => {
     );
   });
 
-  it("requires --update before replacing a file the harness still owns", () => {
+  it("requires --update before replacing a file the sailor still owns", () => {
     const error = refuse({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: "previously shipped\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: "previously shipped\n" },
       }),
       desired: desiredRule(),
       manifest: manifestOf({ [RULE]: "previously shipped\n" }),
@@ -138,14 +138,14 @@ describe("planInstallation", () => {
 
     expect(error.kind).toBe("unsafe-overwrite");
     expect(error.details).toEqual([
-      `.harness/${RULE} is out of date; re-run with \`--update\``,
+      `.sailor/${RULE} is out of date; re-run with \`--update\``,
     ]);
   });
 
-  it("replaces a file the harness still owns when --update is given", () => {
+  it("replaces a file the sailor still owns when --update is given", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${RULE}`]: "previously shipped\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${RULE}`]: "previously shipped\n" },
       }),
       desired: desiredRule(),
       manifest: manifestOf({ [RULE]: "previously shipped\n" }),
@@ -158,11 +158,11 @@ describe("planInstallation", () => {
 
   it("collects every conflict and raises them once", () => {
     const error = refuse({
-      projectRoot: buildHarnessProject({
+      projectRoot: buildSailorProject({
         files: {
-          ".harness/rules/base.yaml": "one\n",
-          ".harness/rules/git.yaml": "two\n",
-          ".harness/config/project.yaml": "three\n",
+          ".sailor/rules/base.yaml": "one\n",
+          ".sailor/rules/git.yaml": "two\n",
+          ".sailor/config/project.yaml": "three\n",
         },
       }),
       desired: [
@@ -180,8 +180,8 @@ describe("planInstallation", () => {
 
   it("plans every non-conflicting file even when it raises no conflict", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { ".harness/rules/git.yaml": SHIPPED },
+      projectRoot: buildSailorProject({
+        files: { ".sailor/rules/git.yaml": SHIPPED },
       }),
       desired: [
         { path: "rules/base.yaml", contents: SHIPPED, kind: "managed" },
@@ -198,8 +198,8 @@ describe("planInstallation", () => {
   });
 
   it("reports a managed file this version no longer ships without deleting it", () => {
-    const root = buildHarnessProject({
-      files: { ".harness/rules/legacy.yaml": "retired\n" },
+    const root = buildSailorProject({
+      files: { ".sailor/rules/legacy.yaml": "retired\n" },
     });
 
     const plan = planInstallation({
@@ -214,15 +214,15 @@ describe("planInstallation", () => {
 
     expect(plan.orphaned).toEqual(["rules/legacy.yaml", "rules/old.yaml"]);
     expect(
-      readFileSync(join(root, ".harness", "rules", "legacy.yaml"), "utf8")
+      readFileSync(join(root, ".sailor", "rules", "legacy.yaml"), "utf8")
     ).toBe("retired\n");
   });
 
   it("writes nothing at all", () => {
-    // The `.harness` directory has to exist, or the ENOENT this used to assert
+    // The `.sailor` directory has to exist, or the ENOENT this used to assert
     // came from the fixture rather than from the planner declining to write.
-    const root = buildHarnessProject({
-      files: { ".harness/rules/git.yaml": SHIPPED },
+    const root = buildSailorProject({
+      files: { ".sailor/rules/git.yaml": SHIPPED },
     });
 
     planInstallation({
@@ -235,9 +235,9 @@ describe("planInstallation", () => {
       update: true,
     });
 
-    expect(readdirSync(join(root, ".harness", "rules"))).toEqual(["git.yaml"]);
+    expect(readdirSync(join(root, ".sailor", "rules"))).toEqual(["git.yaml"]);
     expect(
-      readFileSync(join(root, ".harness", "rules", "git.yaml"), "utf8")
+      readFileSync(join(root, ".sailor", "rules", "git.yaml"), "utf8")
     ).toBe(SHIPPED);
   });
 });
@@ -250,7 +250,7 @@ describe("planInstallation on a seeded file", () => {
 
   it("writes it when the project does not have it yet", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject(),
+      projectRoot: buildSailorProject(),
       desired: seeded(),
       manifest: null,
       update: false,
@@ -261,10 +261,10 @@ describe("planInstallation on a seeded file", () => {
 
   it("leaves a copy the project edited alone instead of refusing", () => {
     // This file exists to be edited. Reconciling it against the template is
-    // what made editing it the thing that broke the next `harness init`.
+    // what made editing it the thing that broke the next `sailor init`.
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${CONFIG}`]: "validationMode: native-only\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${CONFIG}`]: "validationMode: native-only\n" },
       }),
       desired: seeded(),
       manifest: manifestOf({ [CONFIG]: SHIPPED }),
@@ -276,8 +276,8 @@ describe("planInstallation on a seeded file", () => {
 
   it("does not replace it even when --update is given", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${CONFIG}`]: "validationMode: native-only\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${CONFIG}`]: "validationMode: native-only\n" },
       }),
       desired: seeded(),
       manifest: manifestOf({ [CONFIG]: SHIPPED }),
@@ -287,10 +287,10 @@ describe("planInstallation on a seeded file", () => {
     expect(actionsOf(plan)).toEqual([`keep ${CONFIG}`]);
   });
 
-  it("accepts one the harness never installed, because the project owns it", () => {
+  it("accepts one the sailor never installed, because the project owns it", () => {
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${CONFIG}`]: "written by hand\n" },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${CONFIG}`]: "written by hand\n" },
       }),
       desired: seeded(),
       manifest: null,
@@ -303,8 +303,8 @@ describe("planInstallation on a seeded file", () => {
   it("records the hash of the project's copy, not of the template", () => {
     const local = "validationMode: native-only\n";
     const plan = planInstallation({
-      projectRoot: buildHarnessProject({
-        files: { [`.harness/${CONFIG}`]: local },
+      projectRoot: buildSailorProject({
+        files: { [`.sailor/${CONFIG}`]: local },
       }),
       desired: seeded(),
       manifest: null,

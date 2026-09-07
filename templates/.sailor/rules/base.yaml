@@ -1,0 +1,60 @@
+version: 1
+id: sailor-base
+description: Baseline rules that every agent in the pipeline must satisfy
+
+rules:
+  - id: base.tests-accompany-behaviour
+    description: A behaviour change and its tests land together
+    severity: error
+    appliesTo: [architect, cleaner, coder, hardener, qa, specifier]
+    instruction: >
+      Add or update tests in the same change as the behaviour they cover. A
+      change that alters observable behaviour and leaves the suite untouched is
+      incomplete, whether or not the existing tests still pass. If you cannot
+      test something, say so in the handoff and name the reason; do not delete
+      or weaken a test to make a gate go green.
+    checks:
+      - id: native-test
+        runner: project-script
+        script: test
+        phases: [pre-handoff, pre-commit, pre-push]
+        required: true
+        whenMissing: fail
+        timeoutMs: 600000
+
+  - id: base.build-stays-green
+    description: The project still builds before anything is pushed
+    severity: error
+    appliesTo: [cleaner, coder, hardener]
+    instruction: >
+      Leave the project in a buildable state. A broken build is not a later
+      problem to hand to the next agent; fix it in the change that broke it.
+    checks:
+      - id: native-build
+        runner: project-script
+        script: build
+        phases: [pre-push]
+        required: true
+        whenMissing: skip
+        timeoutMs: 600000
+
+  - id: base.report-defects-directly
+    description: Defects, skipped checks and weakened gates are reported
+    severity: error
+    appliesTo: [architect, cleaner, coder, hardener, qa, specifier]
+    instruction: >
+      State defects, skipped checks and architectural compromises plainly in
+      the handoff. Never describe partial work as complete, never present an
+      unverified claim as verified, and never hide a failed tool invocation.
+      A known problem that is written down costs far less than one the next
+      agent discovers.
+
+  - id: base.no-unrelated-changes
+    description: A change stays inside the scope it was handed
+    severity: warning
+    appliesTo: [cleaner, coder, hardener]
+    instruction: >
+      Keep a change to the work it was given. Drive-by renames, reformatting
+      of untouched files and opportunistic refactors make a review unable to
+      distinguish the intended change from the incidental one. Record the
+      opportunity in the handoff instead.

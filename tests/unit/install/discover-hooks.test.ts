@@ -6,7 +6,7 @@ import {
   toProjectPath,
 } from "../../../src/install/discover-hooks.js";
 import type { HookEnvironment } from "../../../src/install/discover-hooks.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import {
   createFakeCommandRunner,
   exited,
@@ -20,7 +20,7 @@ afterEach(() => {
 const HOOK = "#!/usr/bin/env bash\nexit 0\n";
 
 const project = (files: Readonly<Record<string, string>> = {}): string => {
-  const root = buildHarnessProject({ manifest: { name: "host" }, files });
+  const root = buildSailorProject({ manifest: { name: "host" }, files });
 
   for (const path of Object.keys(files)) {
     chmodSync(join(root, ...path.split("/")), 0o755);
@@ -124,7 +124,7 @@ describe("discoverHookEnvironment", () => {
   });
 
   it("ignores a hook that is not executable, because git would not run it", async () => {
-    const root = buildHarnessProject({
+    const root = buildSailorProject({
       files: { ".git/hooks/pre-commit": HOOK },
     });
 
@@ -161,11 +161,11 @@ describe("discoverHookEnvironment", () => {
   });
 
   it("recognises its own dispatchers and claims no prior hook", async () => {
-    // Otherwise a second `harness init` would chain the harness to itself.
-    const root = project({ ".harness/hooks/pre-commit": HOOK });
-    const environment = await discover(root, { hooksPath: ".harness/hooks" });
+    // Otherwise a second `sailor init` would chain the sailor to itself.
+    const root = project({ ".sailor/hooks/pre-commit": HOOK });
+    const environment = await discover(root, { hooksPath: ".sailor/hooks" });
 
-    expect(environment.dispatchedByHarness).toBe(true);
+    expect(environment.dispatchedBySailor).toBe(true);
     expect(environment.priorHooks).toEqual([]);
   });
 
@@ -173,7 +173,7 @@ describe("discoverHookEnvironment", () => {
     const root = project({ ".husky/pre-commit": HOOK });
 
     expect(
-      (await discover(root, { hooksPath: ".husky" })).dispatchedByHarness
+      (await discover(root, { hooksPath: ".husky" })).dispatchedBySailor
     ).toBe(false);
   });
 

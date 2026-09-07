@@ -1,0 +1,16 @@
+# Managed by Sailor.
+version: 1
+
+# What to do when the project already has a hook. `chain` runs the existing
+# hook first and then the sailor gate. `abort` stops installation instead.
+# There is no `replace`: a hook the project wrote is never silently discarded.
+onExistingHook: chain
+
+hooks:
+  - hook: pre-commit
+    enabled: true
+    phase: pre-commit
+
+  - hook: pre-push
+    enabled: true
+    phase: pre-push

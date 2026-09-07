@@ -1,5 +1,5 @@
-import { loadHarnessRuleSet } from "../../harness/load-harness-rule-set.js";
-import { resolveProjectRoot } from "../../harness/resolve-project-root.js";
+import { loadSailorRuleSet } from "../../sailor/load-sailor-rule-set.js";
+import { resolveProjectRoot } from "../../sailor/resolve-project-root.js";
 import { compileAgentPolicy } from "../../prompts/compile-agent-policy.js";
 import { CLI_EXIT_CODES } from "../exit-codes.js";
 import { formatRuleSetExplanation } from "../format-rule-set.js";
@@ -17,7 +17,7 @@ export const explainRules: CliCommandHandler = async (context) => {
     cwd: context.cwd,
     runner: context.runner,
   });
-  const ruleSet = loadHarnessRuleSet({ projectRoot });
+  const ruleSet = loadSailorRuleSet({ projectRoot });
   const { agentId } = context.invocation;
 
   context.streams.stdout.write(

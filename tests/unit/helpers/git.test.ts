@@ -23,7 +23,7 @@ describe("cleanEnvironment", () => {
   });
 
   it("applies overrides on top", () => {
-    expect(cleanEnvironment({ HARNESS_FAKE_EXIT: "4" }).HARNESS_FAKE_EXIT).toBe(
+    expect(cleanEnvironment({ SAILOR_FAKE_EXIT: "4" }).SAILOR_FAKE_EXIT).toBe(
       "4"
     );
   });

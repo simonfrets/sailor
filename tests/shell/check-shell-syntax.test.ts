@@ -13,7 +13,7 @@ const checkerPath = resolve("scripts/check-shell-syntax.sh");
 const temporaryDirectories: string[] = [];
 
 const createFixture = (): string => {
-  const directory = mkdtempSync(join(tmpdir(), "agentic-harness-shell-"));
+  const directory = mkdtempSync(join(tmpdir(), "sailor-shell-"));
   temporaryDirectories.push(directory);
   return directory;
 };

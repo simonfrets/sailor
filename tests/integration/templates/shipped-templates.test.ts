@@ -9,9 +9,9 @@ import { BUILT_IN_AGENT_IDS } from "../../../src/agents/agent-id.js";
 import { loadHooksConfig } from "../../../src/config/hooks-config.js";
 import { loadProjectConfig } from "../../../src/config/project-config.js";
 import {
-  listHarnessTemplateFiles,
-  readHarnessTemplateFile,
-} from "../../../src/install/harness-templates.js";
+  listSailorTemplateFiles,
+  readSailorTemplateFile,
+} from "../../../src/install/sailor-templates.js";
 import { HOOK_NAMES } from "../../../src/project/project-profile-schema.js";
 import { compileAgentPolicy } from "../../../src/prompts/compile-agent-policy.js";
 import { loadRuleBundle } from "../../../src/rules/load-rule-bundle.js";
@@ -30,7 +30,7 @@ afterEach(() => {
 
 const packageRoot = process.cwd();
 
-const ruleBundleFiles = listHarnessTemplateFiles(packageRoot).filter((file) =>
+const ruleBundleFiles = listSailorTemplateFiles(packageRoot).filter((file) =>
   /^rules\/[^/]+\.yaml$/.test(file.installedPath)
 );
 
@@ -38,7 +38,7 @@ const sources: readonly RuleSource[] = ruleBundleFiles.map((file) => ({
   origin: "builtin" as const,
   location: file.installedPath,
   bundle: loadRuleBundle(
-    readHarnessTemplateFile(packageRoot, file.templatePath),
+    readSailorTemplateFile(packageRoot, file.templatePath),
     {
       source: file.installedPath,
     }
@@ -149,9 +149,9 @@ describe("the shipped .gitignore", () => {
   const git = runGit;
 
   const buildRepository = (): string => {
-    const root = createTempDirectory("agentic-harness-gitignore-");
-    const contents = readHarnessTemplateFile(packageRoot, "gitignore");
-    const target = join(root, ".harness", ".gitignore");
+    const root = createTempDirectory("sailor-gitignore-");
+    const contents = readSailorTemplateFile(packageRoot, "gitignore");
+    const target = join(root, ".sailor", ".gitignore");
 
     initRepository(root);
     mkdirSync(dirname(target), { recursive: true });
@@ -167,18 +167,18 @@ describe("the shipped .gitignore", () => {
     const root = buildRepository();
 
     for (const path of [
-      ".harness/node_modules/agentic-harness/package.json",
-      ".harness/state/runs/run-1/agents/coder/transcript.json",
+      ".sailor/node_modules/sailor/package.json",
+      ".sailor/state/runs/run-1/agents/coder/transcript.json",
       // An agent context is derived from the task, the agent definition and
       // the rule set, all three of which are tracked, so it is rebuilt on the
       // machine that needs it rather than committed with the task.
-      ".harness/state/runs/run-1/agents/coder/context.json",
-      ".harness/debug.log",
-      ".harness/install.tmp",
-      ".harness/harness.lock",
+      ".sailor/state/runs/run-1/agents/coder/context.json",
+      ".sailor/debug.log",
+      ".sailor/install.tmp",
+      ".sailor/sailor.lock",
       // `proper-lockfile` puts the task lock beside the file it guards, so the
       // one thing that must stay tracked has an untracked sibling.
-      ".harness/tasks.yaml.lock",
+      ".sailor/tasks.yaml.lock",
     ]) {
       expect(isIgnored(root, path)).toBe(true);
     }
@@ -188,25 +188,25 @@ describe("the shipped .gitignore", () => {
     const root = buildRepository();
 
     for (const path of [
-      ".harness/tasks.yaml",
-      ".harness/version.json",
-      ".harness/rules/base.yaml",
-      ".harness/rules/custom/team.yaml",
-      ".harness/agents/coder.yaml",
-      ".harness/hooks/pre-commit",
-      ".harness/bin/harness",
+      ".sailor/tasks.yaml",
+      ".sailor/version.json",
+      ".sailor/rules/base.yaml",
+      ".sailor/rules/custom/team.yaml",
+      ".sailor/agents/coder.yaml",
+      ".sailor/hooks/pre-commit",
+      ".sailor/bin/sailor",
     ]) {
       expect(isIgnored(root, path)).toBe(false);
     }
   });
 });
 
-const agentFiles = listHarnessTemplateFiles(packageRoot).filter((file) =>
+const agentFiles = listSailorTemplateFiles(packageRoot).filter((file) =>
   /^agents\/[^/]+\.yaml$/.test(file.installedPath)
 );
 
 const definitions: readonly AgentDefinition[] = agentFiles.map((file) =>
-  loadAgentDefinition(readHarnessTemplateFile(packageRoot, file.templatePath), {
+  loadAgentDefinition(readSailorTemplateFile(packageRoot, file.templatePath), {
     source: file.installedPath,
   })
 );
@@ -249,7 +249,7 @@ describe("the shipped agent definitions", () => {
 
   it("names no provider or model id", () => {
     for (const file of agentFiles) {
-      const text = readHarnessTemplateFile(packageRoot, file.templatePath);
+      const text = readSailorTemplateFile(packageRoot, file.templatePath);
 
       expect(text).not.toMatch(/claude|codex|gpt|anthropic|openai/i);
     }
@@ -290,31 +290,28 @@ describe("the shipped agent definitions", () => {
 });
 
 describe("the shipped CI workflow", () => {
-  const workflow = readHarnessTemplateFile(
-    packageRoot,
-    "ci/github-actions.yml"
-  );
+  const workflow = readSailorTemplateFile(packageRoot, "ci/github-actions.yml");
 
   it("runs both gate phases, which check different things", () => {
-    expect(workflow).toContain("harness gate pre-commit");
-    expect(workflow).toContain("harness gate pre-push");
+    expect(workflow).toContain("sailor gate pre-commit");
+    expect(workflow).toContain("sailor gate pre-push");
   });
 
   it("resolves the private tree, which is git-ignored and absent in CI", () => {
-    expect(workflow).toContain("working-directory: .harness");
+    expect(workflow).toContain("working-directory: .sailor");
   });
 
-  it("caches against the harness lockfile, which is the one always present", () => {
+  it("caches against the sailor lockfile, which is the one always present", () => {
     // `cache: npm` alone makes setup-node look for a lockfile at the project
     // root and fail the step outright when the project is on pnpm, yarn or
     // bun. The private tree is npm by design, so its lockfile always exists.
     expect(workflow).toContain(
-      "cache-dependency-path: .harness/package-lock.json"
+      "cache-dependency-path: .sailor/package-lock.json"
     );
   });
 
   it("tells a project that is not on npm what to change", () => {
-    // The harness detects pnpm, yarn and bun, so a workflow that silently
+    // The sailor detects pnpm, yarn and bun, so a workflow that silently
     // assumed npm would break for exactly the projects it detects.
     for (const manager of ["pnpm", "yarn", "bun"]) {
       expect(workflow).toContain(manager);
@@ -332,7 +329,7 @@ describe("the shipped CI workflow", () => {
     const parsed: unknown = parse(workflow);
 
     expect(parsed).toMatchObject({
-      name: "Harness gates",
+      name: "Sailor gates",
       on: { pull_request: null },
     });
   });
@@ -340,16 +337,16 @@ describe("the shipped CI workflow", () => {
 
 describe("the shipped config files", () => {
   const readConfig = (installedPath: string): string =>
-    readHarnessTemplateFile(packageRoot, installedPath);
+    readSailorTemplateFile(packageRoot, installedPath);
 
-  it("defaults the project to native-plus-harness validation", () => {
+  it("defaults the project to native-plus-sailor validation", () => {
     const config = loadProjectConfig(readConfig("config/project.yaml"), {
       source: "config/project.yaml",
     });
 
     expect(config).toEqual({
       version: 1,
-      validationMode: "native-plus-harness",
+      validationMode: "native-plus-sailor",
       packageManager: null,
     });
   });
@@ -365,7 +362,7 @@ describe("the shipped config files", () => {
 
   it("stays valid when only its version key survives", () => {
     // Both files are seeded: written once and then owned by the project. A
-    // later harness that adds a key must not invalidate a copy written before
+    // later sailor that adds a key must not invalidate a copy written before
     // that key existed, which holds only while every key has a default.
     // `not.toThrow()` alone would pass on defaults that had drifted away from
     // what the shipped files say, which is the thing seeding depends on.

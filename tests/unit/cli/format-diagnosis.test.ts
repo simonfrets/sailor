@@ -1,10 +1,10 @@
 import { formatDiagnosis } from "../../../src/cli/format-diagnosis.js";
 import type {
   Diagnostic,
-  HarnessDiagnosis,
-} from "../../../src/install/diagnose-harness.js";
+  SailorDiagnosis,
+} from "../../../src/install/diagnose-sailor.js";
 
-const diagnosis = (diagnostics: readonly Diagnostic[]): HarnessDiagnosis => ({
+const diagnosis = (diagnostics: readonly Diagnostic[]): SailorDiagnosis => ({
   projectRoot: "/tmp/host",
   diagnostics,
   problemCount: diagnostics.filter((entry) => entry.status === "problem")
@@ -17,7 +17,7 @@ const diagnosis = (diagnostics: readonly Diagnostic[]): HarnessDiagnosis => ({
 describe("formatDiagnosis", () => {
   it("names the project it examined", () => {
     expect(formatDiagnosis(diagnosis([]))).toContain(
-      "Harness diagnosis for /tmp/host"
+      "Sailor diagnosis for /tmp/host"
     );
   });
 

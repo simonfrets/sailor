@@ -3,7 +3,7 @@
 
 ---
 
-# Milestone B handoff: `.harness` installer and external hooks
+# Milestone B handoff: `.sailor` installer and external hooks
 
 ## How to start
 
@@ -14,7 +14,7 @@ code.
 
 ## Where things stand
 
-- Worktree: `<PROJECTS>/agentic-harness-codex-basic-structure`
+- Worktree: `<PROJECTS>/sailor-codex-basic-structure`
 - Branch: `codex/basic-structure`
 - HEAD: `599c1ac Enforce rule checks at workflow gates`
 - Working tree clean. Nothing pushed; no remote exists.
@@ -62,12 +62,12 @@ Verbatim from `docs/handoff/rule-enforcement.md`, sections B1–B4.
 - Unknown commands and invalid config return stable nonzero exit codes.
 - Test by spawning the built entrypoint or by injecting streams.
 
-### B2. `.harness` templates
+### B2. `.sailor` templates
 
-- `templates/.harness/` matching the target layout in the A–D handoff.
+- `templates/.sailor/` matching the target layout in the A–D handoff.
 - `base.yaml`, `typescript.yaml`, `git.yaml` with real instructions and checks
   only — no placeholders.
-- A `.harness/.gitignore` ignoring `node_modules/`, `state/`, logs and
+- A `.sailor/.gitignore` ignoring `node_modules/`, `state/`, logs and
   temporary lock files, but **not** `tasks.yaml`, agent definitions, or rules.
 - Validate every shipped template in Jest.
 
@@ -77,9 +77,9 @@ Verbatim from `docs/handoff/rule-enforcement.md`, sections B1–B4.
 - Refuse to install outside a Git repository.
 - Refuse unsafe overwrites; support `--update` only through an explicit managed
   manifest in `version.json`.
-- Install runtime dependencies into `.harness/`, never into the host package.
+- Install runtime dependencies into `.sailor/`, never into the host package.
 - Use temporary directories and atomic rename for managed-file updates.
-- `harness doctor` checks Node, npm, Git, Bash, config validity, runtime
+- `sailor doctor` checks Node, npm, Git, Bash, config validity, runtime
   dependencies, and hook reachability.
 - Test against temporary Git repositories.
 
@@ -89,13 +89,13 @@ Before changing hooks, record the existing local `core.hooksPath`, the resolved
 default `.git/hooks/pre-commit` and `pre-push` paths, and any detected Husky or
 other hook runner.
 
-If hooks already exist, generate a `.harness/hooks/` dispatcher that runs the
-preserved hook **and then** the harness gate. Abort installation if safe
+If hooks already exist, generate a `.sailor/hooks/` dispatcher that runs the
+preserved hook **and then** the sailor gate. Abort installation if safe
 chaining cannot be proven; never silently discard an existing hook.
 
 The pre-commit endpoint runs `gate pre-commit`; the pre-push endpoint runs
 `gate pre-push`. Test: no prior hook, prior relative hook path, prior absolute
-hook path, failing prior hook, failing harness gate, and Git worktrees.
+hook path, failing prior hook, failing sailor gate, and Git worktrees.
 
 ## Traps this repository will spring on you
 
@@ -128,7 +128,7 @@ These cost real time in Milestone A. They are not hypothetical.
    (`no-unnecessary-condition` is an error).
 
 5. **Tests must not need the network.** Acceptance criterion 12. B3 installs
-   dependencies into `.harness/`, which means running a package manager — inject
+   dependencies into `.sailor/`, which means running a package manager — inject
    a `CommandRunner` and assert the argument vector, exactly as
    `discoverProjectProfile` does for `git config`. Do not run a real install in
    a test.
@@ -156,8 +156,8 @@ One commit per step, in order, each green:
 | Step | Subject                                               |
 | ---- | ----------------------------------------------------- |
 | B1   | `Add command line entry point`                        |
-| B2   | `Ship .harness configuration templates`               |
-| B3   | `Install the harness into a project idempotently`     |
+| B2   | `Ship .sailor configuration templates`                |
+| B3   | `Install the sailor into a project idempotently`      |
 | B4   | `Dispatch Git hooks without discarding existing ones` |
 
 ## Completion gate
@@ -170,9 +170,9 @@ npm pack --dry-run
 ```
 
 Then demonstrate, against a throwaway Git repository, acceptance criteria 1–3
-and 4 from the A–D handoff: a TypeScript project installs the harness without
+and 4 from the A–D handoff: a TypeScript project installs the sailor without
 its root `package.json` or ESLint config changing; the footprint is confined to
-`.harness/` plus local Git config; existing hooks still run in their original
+`.sailor/` plus local Git config; existing hooks still run in their original
 order; and a custom YAML rule changes both the compiled policy and the phase
 gates with no TypeScript change.
 
@@ -180,8 +180,8 @@ Update `README.md` only for behaviour that actually exists.
 
 ## Starting prompt
 
-> Continue Agentic Harness on branch `codex/basic-structure` in the worktree
-> `<PROJECTS>/agentic-harness-codex-basic-structure`. Read
+> Continue Sailor on branch `codex/basic-structure` in the worktree
+> `<PROJECTS>/sailor-codex-basic-structure`. Read
 > `AGENTS.md`, `README.md`, `docs/handoff/rule-enforcement.md`, and
 > `docs/handoff/milestone-b.md` completely before writing code. Milestone A is
 > done and committed at 100% coverage. Implement Milestone B only — B1 through

@@ -17,7 +17,7 @@ afterEach(() => {
 const buildRuleDirectory = (
   files: Readonly<Record<string, string>>
 ): string => {
-  const directory = createTempDirectory("agentic-harness-rules-");
+  const directory = createTempDirectory("sailor-rules-");
 
   for (const [name, contents] of Object.entries(files)) {
     writeFileSync(join(directory, name), contents);
@@ -28,10 +28,7 @@ const buildRuleDirectory = (
 
 describe("loadRuleDirectory", () => {
   it("returns no sources for a directory that does not exist", () => {
-    const directory = join(
-      createTempDirectory("agentic-harness-rules-"),
-      "missing"
-    );
+    const directory = join(createTempDirectory("sailor-rules-"), "missing");
 
     expect(
       loadRuleDirectory({ directory, origin: "builtin", label: "rules" })
@@ -47,7 +44,7 @@ describe("loadRuleDirectory", () => {
     const sources = loadRuleDirectory({
       directory,
       origin: "project",
-      label: ".harness/rules/custom",
+      label: ".sailor/rules/custom",
     });
 
     expect(sources.map((source) => source.bundle.id)).toEqual([
@@ -59,8 +56,8 @@ describe("loadRuleDirectory", () => {
       "project",
     ]);
     expect(sources.map((source) => source.location)).toEqual([
-      ".harness/rules/custom/alpha.yml",
-      ".harness/rules/custom/zeta.yaml",
+      ".sailor/rules/custom/alpha.yml",
+      ".sailor/rules/custom/zeta.yaml",
     ]);
   });
 
@@ -79,7 +76,7 @@ describe("loadRuleDirectory", () => {
     const sources = loadRuleDirectory({
       directory,
       origin: "builtin",
-      label: ".harness/rules",
+      label: ".sailor/rules",
     });
 
     expect(sources.map((source) => source.bundle.id)).toEqual(["base"]);
@@ -93,11 +90,11 @@ describe("loadRuleDirectory", () => {
         loadRuleDirectory({
           directory,
           origin: "builtin",
-          label: ".harness/rules",
+          label: ".sailor/rules",
         }),
       RuleValidationError
     );
 
-    expect(error.source).toBe(".harness/rules/broken.yaml");
+    expect(error.source).toBe(".sailor/rules/broken.yaml");
   });
 });

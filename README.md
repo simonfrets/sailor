@@ -1,26 +1,26 @@
-# Agentic Harness
+# Sailor
 
-Agentic Harness is a TypeScript-based, project-local workflow engine for
+Sailor is a TypeScript-based, project-local workflow engine for
 coordinating coding agents through CLI adapters such as Codex and Claude.
 
 The framework is being built around one hard boundary: installing it into a
 project places its configuration, agents, rules, task state, contexts, hooks,
-and runtime under that project's `.harness/` directory.
+and runtime under that project's `.sailor/` directory.
 
 ## Current status
 
 This branch implements the rule and gate kernel, the command line entry point,
-and the `.harness/` installer: rule bundles are validated, layered, hashed,
+and the `.sailor/` installer: rule bundles are validated, layered, hashed,
 compiled into agent policies, executed as phase gates, and installed into a
-host project by `harness init`, which `harness doctor` then checks.
+host project by `sailor init`, which `sailor doctor` then checks.
 
-`harness init` also takes over the repository's Git hooks without discarding
+`sailor init` also takes over the repository's Git hooks without discarding
 the ones the project already had, so a gate runs on an ordinary local commit
 rather than only when someone remembers to invoke it. The two configuration
 files it installs belong to the project and can be edited freely.
 
 Task state, the workflow state machine and per-agent handoff contexts are
-implemented: a transition is recorded into `.harness/tasks.yaml` through
+implemented: a transition is recorded into `.sailor/tasks.yaml` through
 `updateTaskFile`, which holds an exclusive lock across the whole
 read-change-write, and a context is written per run and per agent. Pairing the
 two - writing the next agent's context and recording the transition that points
@@ -65,22 +65,22 @@ full lint, type-check, shell syntax, and Jest gates.
 ## Command line
 
 ```sh
-harness <command> [options]
+sailor <command> [options]
 ```
 
-| Command                               | Behaviour                                     |
-| ------------------------------------- | --------------------------------------------- |
-| `harness rules validate`              | Load and resolve every bundle; print the hash |
-| `harness rules explain`               | List the resolved rules with their origins    |
-| `harness rules explain --agent coder` | Print that agent's compiled policy            |
-| `harness gate <phase>`                | Run the checks that apply to a workflow phase |
-| `harness init [--update]`             | Install or update `.harness/` in this project |
-| `harness doctor`                      | Check that the installed harness can run      |
+| Command                              | Behaviour                                     |
+| ------------------------------------ | --------------------------------------------- |
+| `sailor rules validate`              | Load and resolve every bundle; print the hash |
+| `sailor rules explain`               | List the resolved rules with their origins    |
+| `sailor rules explain --agent coder` | Print that agent's compiled policy            |
+| `sailor gate <phase>`                | Run the checks that apply to a workflow phase |
+| `sailor init [--update]`             | Install or update `.sailor/` in this project  |
+| `sailor doctor`                      | Check that the installed sailor can run       |
 
 Rules are read from the project the command is run in. The working tree root
 is resolved with `git rev-parse --show-toplevel`, so a command works from any
-subdirectory. `.harness/rules/*.yaml` is the `builtin` precedence layer and
-`.harness/rules/custom/*.yaml` is the `project` layer, so a project replaces a
+subdirectory. `.sailor/rules/*.yaml` is the `builtin` precedence layer and
+`.sailor/rules/custom/*.yaml` is the `project` layer, so a project replaces a
 shipped rule by declaring the same rule id with `overrides: true`.
 
 Exit codes are part of the contract, because a hook or a CI step branches on
@@ -91,31 +91,31 @@ them:
 | 0    | Success                                       |
 | 1    | Unexpected failure                            |
 | 2    | The command line could not be understood      |
-| 3    | Invalid or missing harness configuration      |
+| 3    | Invalid or missing sailor configuration       |
 | 4    | A required check failed and blocked the phase |
 | 5    | The action was unsafe and was not taken       |
 
 ## Installation
 
-`harness init` resolves the working tree with `git rev-parse --show-toplevel`
+`sailor init` resolves the working tree with `git rev-parse --show-toplevel`
 and refuses to install outside a Git repository. Everything it writes lands
-under `.harness/`; the host project's `package.json`, ESLint configuration and
+under `.sailor/`; the host project's `package.json`, ESLint configuration and
 lockfile are never read for writing and never modified.
 
 Each installed file is written through a temporary sibling and an atomic
 rename, so an interrupted install leaves the previous version intact rather
 than a truncated one.
 
-Installed files come in two kinds, and `.harness/version.json` — the manifest —
+Installed files come in two kinds, and `.sailor/version.json` — the manifest —
 records which is which:
 
-- **managed** files are the harness's. `rules/`, `agents/`, the hook
+- **managed** files are the sailor's. `rules/`, `agents/`, the hook
   dispatchers, the launcher and `package.json` are kept in step with the
   version that installed them, and an edit to one is a conflict.
 - **seeded** files are the project's. `config/project.yaml` and
   `config/hooks.yaml` carry the only decisions discovery cannot make, so they
   are written once, when absent, and never reconciled again. They exist to be
-  edited; a harness that refused to run afterwards would be refusing to run
+  edited; a sailor that refused to run afterwards would be refusing to run
   because it had been configured.
 
 Ownership is a property of the shipped file, not of the manifest entry, so a
@@ -141,23 +141,23 @@ Every conflict in a project is collected and reported once, so a half-adopted
 installation is untangled in one pass instead of one file per re-run. Nothing
 is written until the plan is conflict-free.
 
-A managed file that a newer harness no longer ships is **reported and left in
+A managed file that a newer sailor no longer ships is **reported and left in
 place**. Deleting a file from someone's project is the irreversible act the
 installer will not perform on its own.
 
-Runtime dependencies are resolved into `.harness/node_modules/` by npm running
-with `.harness/` as its working directory — npm regardless of what the host
+Runtime dependencies are resolved into `.sailor/node_modules/` by npm running
+with `.sailor/` as its working directory — npm regardless of what the host
 project uses, because resolving this tree with the project's package manager
 would apply that manager's workspace rules and, in a monorepo, hoist the
-harness's dependencies into the workspace root.
+sailor's dependencies into the workspace root.
 
-The harness is **not published to npm**. The generated `.harness/package.json`
+The sailor is **not published to npm**. The generated `.sailor/package.json`
 pins one exact GitHub release asset — the tarball `npm pack` produces, attached
 to the release for that version:
 
 ```json
 "dependencies": {
-  "agentic-harness": "https://github.com/<owner>/<repo>/releases/download/v0.1.0/agentic-harness-0.1.0.tgz"
+  "sailor": "https://github.com/<owner>/<repo>/releases/download/v0.1.0/sailor-0.1.0.tgz"
 }
 ```
 
@@ -167,14 +167,14 @@ so there would be nothing there to install. The owner and name come from this
 package's own `repository` field, so a fork installs from the fork.
 
 Files and the manifest are written before dependencies, so an install
-interrupted by a failing download leaves a project the harness still recognises
-as its own and a re-run repairs it. Git hooks are pointed at the harness
+interrupted by a failing download leaves a project the sailor still recognises
+as its own and a re-run repairs it. Git hooks are pointed at the sailor
 **last**, only once the runtime they invoke is actually present: activating them
 first left a repository that could not commit at all, because every hook ran a
 launcher with nothing behind it. A failed install reports everything it did
 write, leaves hooks alone, and exits `5`.
 
-`harness doctor` checks Node, npm, Git, Bash, the installation manifest, the
+`sailor doctor` checks Node, npm, Git, Bash, the installation manifest, the
 configuration files, the rule set, the private dependency tree, Git hook
 reachability, whether every check can resolve the project script it names, and
 whether anything runs the gates in CI.
@@ -186,25 +186,25 @@ wrong for one that never had that script. Left alone it blocks every commit,
 so `doctor` reports it as a problem and names the rule, the check and the
 script, along with where to override it. It writes nothing, runs every check even after one fails, and
 exits `3` if any check is a problem. Warnings — an installation made by a
-different harness version, or hooks that are not dispatched through the harness
+different sailor version, or hooks that are not dispatched through the sailor
 — are reported without failing.
 
 ## Git hooks
 
-`harness init` points the repository's local `core.hooksPath` at
-`.harness/hooks` and writes one dispatcher per hook. That setting is the single
-thing the harness changes outside `.harness/`, because Git cannot be told to
+`sailor init` points the repository's local `core.hooksPath` at
+`.sailor/hooks` and writes one dispatcher per hook. That setting is the single
+thing the sailor changes outside `.sailor/`, because Git cannot be told to
 look inside a directory from within that directory.
 
 Redirecting `core.hooksPath` stops **every** hook in the previous directory
-from running, not only the ones the harness has a gate for. So the installer
+from running, not only the ones the sailor has a gate for. So the installer
 first records what was active — `core.hooksPath` if it was set, otherwise the
 hooks directory of the common Git directory, which is where a linked worktree's
 hooks actually live — and generates a dispatcher for each of them:
 
 - a managed hook (`pre-commit` and `pre-push` by default) runs the preserved
   hook first, unchanged, with the same arguments and the same standard input,
-  and then `harness gate <phase>`;
+  and then `sailor gate <phase>`;
 - any other executable hook that was there gets a pass-through that runs the
   original and nothing else.
 
@@ -215,27 +215,27 @@ that hook's own.
 `config/hooks.yaml` sets the policy. `onExistingHook: chain` is the default and
 `abort` refuses the installation instead. There is no `replace`. It is a seeded
 file, so the installed copy is what installation reads: disabling a hook or
-switching to `abort` takes effect on the next `harness init`.
+switching to `abort` takes effect on the next `sailor init`.
 
 A preserved hook inside the repository is recorded relative to the project root
 and re-joined at run time, so a dispatcher is the same file on every machine
-that checks the project out. Once Git dispatches through the harness,
-`.harness/version.json` is the only surviving record of what was there before,
+that checks the project out. Once Git dispatches through the sailor,
+`.sailor/version.json` is the only surviving record of what was there before,
 and a re-install reads it rather than inspecting its own dispatchers and
-chaining the harness to itself.
+chaining the sailor to itself.
 
-`.harness/bin/harness` is the executable the dispatchers call. It runs the CLI
-from `.harness/node_modules/`, so a hook runs the version this project
+`.sailor/bin/sailor` is the executable the dispatchers call. It runs the CLI
+from `.sailor/node_modules/`, so a hook runs the version this project
 installed rather than whichever global one is first on `PATH`, and exits `3`
 with a clear message when the runtime has not been installed.
 
 ### Worktrees
 
 `core.hooksPath` is repository-local configuration, which Git shares across
-every linked worktree. The harness therefore writes a **relative** value, so
-each worktree resolves its own `.harness/hooks`. The consequence is worth
+every linked worktree. The sailor therefore writes a **relative** value, so
+each worktree resolves its own `.sailor/hooks`. The consequence is worth
 stating plainly: installing from one worktree redirects hooks for the whole
-repository, and a worktree with no `.harness/hooks` of its own then runs no
+repository, and a worktree with no `.sailor/hooks` of its own then runs no
 hooks at all. Install from the main checkout, or install in every worktree.
 
 ## Continuous integration
@@ -263,34 +263,34 @@ enforcement. `tests/integration/ci/workflow.test.ts` asserts the exact command
 list, so a step cannot be quietly dropped from the one place that cannot be
 skipped.
 
-### A project the harness is installed into
+### A project the sailor is installed into
 
-The same reasoning applies, and the harness cannot act on it alone. A GitHub
+The same reasoning applies, and the sailor cannot act on it alone. A GitHub
 Actions workflow has to live in `.github/workflows/` to run at all, which is
-outside the `.harness/` boundary — the one thing installation is not allowed to
-cross. So `harness init` ships a ready workflow at `.harness/ci/github-actions.yml`
+outside the `.sailor/` boundary — the one thing installation is not allowed to
+cross. So `sailor init` ships a ready workflow at `.sailor/ci/github-actions.yml`
 and leaves placing it to the project:
 
 ```sh
 mkdir -p .github/workflows
-cp .harness/ci/github-actions.yml .github/workflows/harness.yml
+cp .sailor/ci/github-actions.yml .github/workflows/sailor.yml
 ```
 
-It resolves the private tree from `.harness/package-lock.json` and then runs
-`harness gate pre-commit` and `harness gate pre-push`; both, because the two
+It resolves the private tree from `.sailor/package-lock.json` and then runs
+`sailor gate pre-commit` and `sailor gate pre-push`; both, because the two
 phases check different things — lint and type checking on one, the build on the
 other.
 
 Installing the _project's_ own dependencies is the one manager-specific step,
 and the template says so in place: replace `npm ci` if the project is on pnpm,
-Yarn or Bun. Caching is pointed at `.harness/package-lock.json` rather than the
+Yarn or Bun. Caching is pointed at `.sailor/package-lock.json` rather than the
 project root, because the private tree is always npm by design while the
 project may not be, and `cache: npm` against a `package-lock.json` that does not
 exist fails the step outright.
 
 Leaving it there as documentation would make it advice, which this project does
-not treat as enforcement, so `harness doctor` reports it: a project whose
-`.github/workflows/` contains nothing invoking `harness gate` gets a **warning**
+not treat as enforcement, so `sailor doctor` reports it: a project whose
+`.github/workflows/` contains nothing invoking `sailor gate` gets a **warning**
 naming the file to copy. A warning rather than a failure, because a project may
 enforce the same gates on GitLab, Jenkins or a server-side hook, and "no GitHub
 workflow runs them" is the only claim this check is in a position to make.
@@ -352,8 +352,8 @@ affect it, so the same logical rules hash identically on any machine.
 
 ## Agent definitions and configuration
 
-`templates/.harness/agents/` ships one definition per built-in agent, and
-`templates/.harness/config/` ships the two settings files the installer will
+`templates/.sailor/agents/` ships one definition per built-in agent, and
+`templates/.sailor/config/` ships the two settings files the installer will
 place alongside them. Both are validated by the test suite, so a shipped
 template that stops matching its schema fails the build.
 
@@ -409,9 +409,9 @@ settle exactly the ambiguity that field had already failed to settle. A config
 file that is present but invalid is reported rather than ignored, so a mistyped
 setting cannot silently deliver the opposite of what was asked for. `config/hooks.yaml` says which Git hooks are managed and what to do
 when the project already has one — `chain` runs the existing hook and then the
-harness gate, `abort` stops. There is no `replace`.
+sailor gate, `abort` stops. There is no `replace`.
 
-`harness init` installs these files and `harness doctor` validates the
+`sailor init` installs these files and `sailor doctor` validates the
 installed copies. Hook dispatch is the next milestone, and enforcing the tool
 policy at run time belongs to the provider adapters.
 
@@ -477,22 +477,22 @@ separate act taking a revision of its own, so it can never be granted by the
 same call that starts the work, and a move to `implementing` is refused until
 one is recorded. What is not enforced is who granted it: `approvedBy` is a free
 string, recorded and never checked, and nothing compares it with whoever asks
-for the transition that starts the coder. The separation the harness holds is
+for the transition that starts the coder. The separation the sailor holds is
 between the two acts, not between two identities. Sending a task back to
 `draft` or `specified` withdraws the approval, because an approval of a
 specification that has since been rewritten approves nothing.
 
-### `.harness/tasks.yaml`
+### `.sailor/tasks.yaml`
 
-Task state lives in `.harness/tasks.yaml`, which is deliberately **not**
+Task state lives in `.sailor/tasks.yaml`, which is deliberately **not**
 ignored: a workflow nobody can review in a pull request is not governed by
-anything. It is neither a managed nor a seeded file, so `harness init` never
+anything. It is neither a managed nor a seeded file, so `sailor init` never
 writes it and never reconciles it; the first transition creates it.
 
 The transition creates the file, not the directory holding it. Taking the task
-lock against a project with no `.harness` reports `not-installed` and creates
-nothing, because that directory is what `harness init` installs: creating it
-here would leave a `.harness` holding task state and no agents, rules or hooks
+lock against a project with no `.sailor` reports `not-installed` and creates
+nothing, because that directory is what `sailor init` installs: creating it
+here would leave a `.sailor` holding task state and no agents, rules or hooks
 behind any task call made against any path.
 
 Every transition records the revision it produced and the revision its writer
@@ -509,12 +509,12 @@ back without another process getting in between. The lock is
 an `fsync` and an atomic rename. Its `.lock` sibling is covered by the shipped
 `.gitignore`.
 
-A harness killed while holding that lock leaves it behind, and the only thing
+A sailor killed while holding that lock leaves it behind, and the only thing
 that says nobody holds it is its age. The window it stays honoured for is two
 seconds - the shortest `proper-lockfile` implements, and far longer than the
 read-change-write it covers - and acquiring waits out roughly 2.8 seconds, so
 an abandoned lock is normally taken over rather than reported as contention.
-Waiting less would leave `harness gate pre-commit` failing, and a failing gate
+Waiting less would leave `sailor gate pre-commit` failing, and a failing gate
 blocks commits, for as long as the window lasts.
 
 Normally, not always. `proper-lockfile` measures the filesystem's mtime
@@ -528,8 +528,8 @@ not the worst one.
 
 Contention is reported as contention, and nothing else is. `proper-lockfile`
 raises `ELOCKED` for a lock another process is genuinely holding; anything else
-that stops the lock being taken - a `.harness` the process cannot write, a full
-filesystem, a `.harness` that is not a directory - is reported as a lock that
+that stops the lock being taken - a `.sailor` the process cannot write, a full
+filesystem, a `.sailor` that is not a directory - is reported as a lock that
 could not be taken, with the cause beneath it. Waiting is the answer to exactly
 one of those.
 
@@ -537,7 +537,7 @@ one of those.
 from, and both are exported. A read on its own is whole, because a write lands
 by rename and nothing observes half a file, but it is a snapshot and it takes
 no lock. Pairing the two by hand takes neither the lock nor the
-expected-revision check, so a transition another harness process recorded in
+expected-revision check, so a transition another sailor process recorded in
 between is erased with no error to show for it: the guarantee is a property of
 `updateTaskFile`, not of the file. Anything that changes a task goes through
 it.
@@ -547,7 +547,7 @@ it.
 Each handoff writes the next agent a context of its own at
 
 ```text
-.harness/state/runs/<run-id>/agents/<agent-id>/context.json
+.sailor/state/runs/<run-id>/agents/<agent-id>/context.json
 ```
 
 carrying that agent's own tool policy and write scopes, the compiled policy for
@@ -557,7 +557,7 @@ both in the path, each read parses the file again, and what comes back is
 frozen.
 
 Writing that context and recording the transition that points at it are two
-calls, `writeAgentContext` and `transitionTask`, and the harness does not
+calls, `writeAgentContext` and `transitionTask`, and the sailor does not
 couple them: `contextPath` is optional on a transition and defaults to none,
 which is what a move into a stage no agent owns records. Ordering them belongs
 to whatever drives the workflow, and that is Milestone D. Today the only driver

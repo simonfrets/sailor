@@ -10,8 +10,8 @@ import { join } from "node:path";
 import { createDefaultCliCommands } from "../../../src/cli/default-commands.js";
 import { CLI_EXIT_CODES } from "../../../src/cli/exit-codes.js";
 import { runCli } from "../../../src/cli/run-cli.js";
-import { listHarnessTemplateFiles } from "../../../src/install/harness-templates.js";
-import { readPackageVersion } from "../../../src/harness/package-version.js";
+import { listSailorTemplateFiles } from "../../../src/install/sailor-templates.js";
+import { readPackageVersion } from "../../../src/sailor/package-version.js";
 import { createRecordedStreams } from "../../helpers/cli-streams.js";
 import {
   createFakeCommandRunner,
@@ -25,8 +25,8 @@ import {
 import type { CommandRequest } from "../../../src/processes/command-runner.js";
 
 /**
- * A stand-in for the repository-local git config, so `harness doctor` reads
- * back the `core.hooksPath` that `harness init` set in the same test.
+ * A stand-in for the repository-local git config, so `sailor doctor` reads
+ * back the `core.hooksPath` that `sailor init` set in the same test.
  */
 const gitConfig = new Map<string, string>();
 
@@ -44,7 +44,7 @@ interface CliRun {
 }
 
 const buildProject = (): string => {
-  const root = createTempDirectory("agentic-harness-cli-install-");
+  const root = createTempDirectory("sailor-cli-install-");
 
   writeFileSync(
     join(root, "package.json"),
@@ -133,29 +133,29 @@ const run = async (
 
 /** Fakes the private tree `npm install` would have resolved. */
 const resolveRuntime = (root: string): void => {
-  const directory = join(root, ".harness", "node_modules", "agentic-harness");
+  const directory = join(root, ".sailor", "node_modules", "sailor");
 
   mkdirSync(directory, { recursive: true });
   writeFileSync(
     join(directory, "package.json"),
     `${JSON.stringify({
-      name: "agentic-harness",
+      name: "sailor",
       version: readPackageVersion(packageRoot),
     })}\n`
   );
 };
 
-describe("harness init", () => {
-  it("installs the shipped harness into a project", async () => {
+describe("sailor init", () => {
+  it("installs the shipped sailor into a project", async () => {
     const root = buildProject();
     const result = await run(root, ["init"]);
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.ok);
     expect(result.stdout).toContain("+ rules/base.yaml");
     expect(result.stdout).toContain(
-      "Runtime dependencies resolved in .harness/node_modules"
+      "Runtime dependencies resolved in .sailor/node_modules"
     );
-    expect(readdirSync(join(root, ".harness")).sort()).toEqual([
+    expect(readdirSync(join(root, ".sailor")).sort()).toEqual([
       ".gitignore",
       "agents",
       "bin",
@@ -168,13 +168,13 @@ describe("harness init", () => {
     ]);
   });
 
-  it("changes nothing outside .harness", async () => {
+  it("changes nothing outside .sailor", async () => {
     const root = buildProject();
     const manifest = readFileSync(join(root, "package.json"), "utf8");
 
     await run(root, ["init"]);
 
-    expect(readdirSync(root).sort()).toEqual([".harness", "package.json"]);
+    expect(readdirSync(root).sort()).toEqual([".sailor", "package.json"]);
     expect(readFileSync(join(root, "package.json"), "utf8")).toBe(manifest);
   });
 
@@ -188,7 +188,7 @@ describe("harness init", () => {
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.refused);
     expect(result.stderr).toContain("is not inside a git repository");
-    expect(existsSync(join(root, ".harness"))).toBe(false);
+    expect(existsSync(join(root, ".sailor"))).toBe(false);
   });
 
   it("is safe to run twice", async () => {
@@ -200,7 +200,7 @@ describe("harness init", () => {
     expect(result.exitCode).toBe(CLI_EXIT_CODES.ok);
     expect(result.stdout).toContain(
       `0 files created, 0 replaced, ${String(
-        listHarnessTemplateFiles(packageRoot).length + 4
+        listSailorTemplateFiles(packageRoot).length + 4
       )} already up to date`
     );
   });
@@ -208,15 +208,15 @@ describe("harness init", () => {
   it("refuses to overwrite a file the project put there itself", async () => {
     const root = buildProject();
 
-    mkdirSync(join(root, ".harness", "rules"), { recursive: true });
-    writeFileSync(join(root, ".harness", "rules", "base.yaml"), "mine\n");
+    mkdirSync(join(root, ".sailor", "rules"), { recursive: true });
+    writeFileSync(join(root, ".sailor", "rules", "base.yaml"), "mine\n");
 
     const result = await run(root, ["init"]);
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.refused);
-    expect(result.stderr).toContain("was not installed by the harness");
+    expect(result.stderr).toContain("was not installed by the sailor");
     expect(
-      readFileSync(join(root, ".harness", "rules", "base.yaml"), "utf8")
+      readFileSync(join(root, ".sailor", "rules", "base.yaml"), "utf8")
     ).toBe("mine\n");
   });
 
@@ -230,7 +230,7 @@ describe("harness init", () => {
   });
 });
 
-describe("harness doctor", () => {
+describe("sailor doctor", () => {
   it("passes on a complete installation", async () => {
     const root = buildProject();
 
@@ -239,7 +239,7 @@ describe("harness doctor", () => {
 
     const result = await run(root, ["doctor"]);
 
-    expect(result.stdout).toContain("Harness diagnosis for");
+    expect(result.stdout).toContain("Sailor diagnosis for");
     expect(result.stdout).toContain("OK   Rules —");
     expect(result.stdout).toContain(
       "OK   Git hooks — git dispatches pre-commit (pre-commit), pre-push (pre-push)"
@@ -279,11 +279,11 @@ describe("harness doctor", () => {
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.invalidConfig);
     expect(result.stdout).toContain(
-      "FAIL Runtime dependencies — agentic-harness is not resolved"
+      "FAIL Runtime dependencies — sailor is not resolved"
     );
   });
 
-  it("reports a project the harness was never installed into", async () => {
+  it("reports a project the sailor was never installed into", async () => {
     const result = await run(buildProject(), ["doctor"]);
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.invalidConfig);

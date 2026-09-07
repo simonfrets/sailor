@@ -6,13 +6,13 @@ import { agentToolsSchema } from "../agents/agent-definition.js";
 import type { AgentDefinition } from "../agents/agent-definition.js";
 import { z } from "zod";
 
-import { writeFileAtomic } from "../harness/atomic-write.js";
-import { HarnessError } from "../harness/harness-error.js";
-import { HARNESS_DIRECTORY, HARNESS_PATHS } from "../harness/layout.js";
+import { writeFileAtomic } from "../sailor/atomic-write.js";
+import { SailorError } from "../sailor/sailor-error.js";
+import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
 import {
   projectRelativeGlobSchema,
   projectRelativePathSchema,
-} from "../harness/project-path.js";
+} from "../sailor/project-path.js";
 import { projectScriptNameSchema } from "../rules/rule-schema.js";
 import { TASK_FILE_SOURCE } from "./task-file.js";
 import {
@@ -92,8 +92,8 @@ export type AgentContext = z.output<typeof agentContextSchema>;
  */
 export const agentContextDirectory = (runId: string, agentId: string): string =>
   posix.join(
-    HARNESS_DIRECTORY,
-    ...HARNESS_PATHS.runs.split(/[\\/]/),
+    SAILOR_DIRECTORY,
+    ...SAILOR_PATHS.runs.split(/[\\/]/),
     runId,
     "agents",
     agentId
@@ -105,7 +105,7 @@ export const agentContextFile = (runId: string, agentId: string): string =>
 /**
  * Resolves a recorded context path against a project, refusing to leave it.
  *
- * The recorded form already starts at `.harness`, because that is what
+ * The recorded form already starts at `.sailor`, because that is what
  * `tasks.yaml` has to carry to mean the same thing on the next machine.
  *
  * The guard is here rather than at one call site because the two callers reach
@@ -121,7 +121,7 @@ const absoluteContextPath = (projectRoot: string, relative: string): string => {
   const validated = projectRelativePathSchema.safeParse(relative);
 
   if (!validated.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `\`${relative}\` is not a context path inside this project`,
       validated.error.issues.map((issue) => issue.message)
@@ -176,7 +176,7 @@ export const buildAgentContext = (
   const result = agentContextSchema.safeParse(context);
 
   if (!result.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `cannot build a context for \`${input.definition.id}\` on task \`${input.task.id}\``,
       result.error.issues.map(
@@ -248,7 +248,7 @@ export const readAgentContext = (
   const path = absoluteContextPath(projectRoot, relative);
 
   if (!existsSync(path)) {
-    throw new HarnessError(
+    throw new SailorError(
       "missing-context",
       `${relative} was not written on this machine`,
       [
@@ -263,7 +263,7 @@ export const readAgentContext = (
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error: unknown) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `${contextDirectory} does not hold a readable ${AGENT_CONTEXT_FILE}`,
       [String(error)]
@@ -273,7 +273,7 @@ export const readAgentContext = (
   const result = agentContextSchema.safeParse(parsed);
 
   if (!result.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `${relative} is not a valid agent context`,
       result.error.issues.map(

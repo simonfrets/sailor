@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import {
-  HARNESS_PACKAGE_NAME,
+  SAILOR_PACKAGE_NAME,
   RUNTIME_INSTALL_ARGV,
   RUNTIME_INSTALL_TIMEOUT_MS,
   RUNTIME_PACKAGE_NAME,
   buildRuntimePackageManifest,
-  harnessReleaseTarballUrl,
+  sailorReleaseTarballUrl,
   installRuntimeDependencies,
 } from "../../../src/install/runtime-dependencies.js";
 import { captureRejection } from "../../helpers/expect-error.js";
@@ -24,14 +24,14 @@ import type { PlannedCommandResult } from "../../helpers/fake-command-runner.js"
 const PROJECT_ROOT = join("/tmp", "host-project");
 
 describe("buildRuntimePackageManifest", () => {
-  const build = (harnessVersion = "1.2.3"): string =>
+  const build = (sailorVersion = "1.2.3"): string =>
     buildRuntimePackageManifest({
-      harnessVersion,
+      sailorVersion,
       repository: "an-owner/a-repo",
     });
 
   it("pins one exact GitHub release asset as the only dependency", () => {
-    // The harness is not published to npm, so the dependency is the tarball
+    // The sailor is not published to npm, so the dependency is the tarball
     // `npm pack` produces, attached to the release for its version.
     const manifest: unknown = JSON.parse(build());
 
@@ -40,10 +40,10 @@ describe("buildRuntimePackageManifest", () => {
       version: "0.0.0",
       private: true,
       description:
-        "Private dependency tree for the agentic harness installed in this project.",
+        "Private dependency tree for the sailor installed in this project.",
       dependencies: {
-        [HARNESS_PACKAGE_NAME]:
-          "https://github.com/an-owner/a-repo/releases/download/v1.2.3/agentic-harness-1.2.3.tgz",
+        [SAILOR_PACKAGE_NAME]:
+          "https://github.com/an-owner/a-repo/releases/download/v1.2.3/sailor-1.2.3.tgz",
       },
     });
   });
@@ -68,10 +68,10 @@ describe("buildRuntimePackageManifest", () => {
   });
 });
 
-describe("harnessReleaseTarballUrl", () => {
+describe("sailorReleaseTarballUrl", () => {
   it("points at the asset name `npm pack` produces", () => {
-    expect(harnessReleaseTarballUrl("owner/repo", "0.1.0")).toBe(
-      "https://github.com/owner/repo/releases/download/v0.1.0/agentic-harness-0.1.0.tgz"
+    expect(sailorReleaseTarballUrl("owner/repo", "0.1.0")).toBe(
+      "https://github.com/owner/repo/releases/download/v0.1.0/sailor-0.1.0.tgz"
     );
   });
 });
@@ -92,14 +92,14 @@ describe("installRuntimeDependencies", () => {
     return runner;
   };
 
-  const refuse = async (respond: PlannedCommandResult): Promise<HarnessError> =>
+  const refuse = async (respond: PlannedCommandResult): Promise<SailorError> =>
     captureRejection(
       () =>
         installRuntimeDependencies({
           projectRoot: PROJECT_ROOT,
           runner: createFakeCommandRunner(respond).run,
         }),
-      HarnessError
+      SailorError
     );
 
   it("resolves the private tree with npm whatever the host project uses", async () => {
@@ -114,10 +114,10 @@ describe("installRuntimeDependencies", () => {
     );
   });
 
-  it("runs inside .harness so npm never reads the host manifest", async () => {
+  it("runs inside .sailor so npm never reads the host manifest", async () => {
     const runner = await install(exited(0));
 
-    expect(at(runner.requests, 0).cwd).toBe(join(PROJECT_ROOT, ".harness"));
+    expect(at(runner.requests, 0).cwd).toBe(join(PROJECT_ROOT, ".sailor"));
   });
 
   it("passes no environment overrides and the documented timeout", async () => {

@@ -6,14 +6,14 @@ export const PACKAGE_MANAGERS = ["bun", "npm", "pnpm", "yarn"] as const;
 export const packageManagerSchema = z.enum(PACKAGE_MANAGERS);
 
 /**
- * `native-plus-harness` runs the host project's own scripts alongside the
- * harness correctness gates. The other modes exist so a project can opt out of
+ * `native-plus-sailor` runs the host project's own scripts alongside the
+ * sailor correctness gates. The other modes exist so a project can opt out of
  * one side without editing rules.
  */
 export const VALIDATION_MODES = [
-  "harness-only",
+  "sailor-only",
   "native-only",
-  "native-plus-harness",
+  "native-plus-sailor",
 ] as const;
 export const validationModeSchema = z.enum(VALIDATION_MODES);
 

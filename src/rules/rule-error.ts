@@ -30,7 +30,7 @@ export const formatRuleIssues = (
 /**
  * Raised when a rule bundle cannot be parsed or does not satisfy the schema.
  *
- * Every issue found in the file is carried, so `harness rules validate` can
+ * Every issue found in the file is carried, so `sailor rules validate` can
  * report a whole file in one pass instead of one problem per run.
  */
 export class RuleValidationError extends Error {

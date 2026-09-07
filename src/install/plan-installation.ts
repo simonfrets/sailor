@@ -1,8 +1,8 @@
-import { HarnessError } from "../harness/harness-error.js";
-import { HARNESS_DIRECTORY, harnessPath } from "../harness/layout.js";
-import { readTextFileIfPresent } from "../harness/read-text-file.js";
+import { SailorError } from "../sailor/sailor-error.js";
+import { SAILOR_DIRECTORY, sailorPath } from "../sailor/layout.js";
+import { readTextFileIfPresent } from "../sailor/read-text-file.js";
 import { compareCodeUnits } from "../rules/hash-rule-set.js";
-import type { HarnessTemplateFile } from "./harness-templates.js";
+import type { SailorTemplateFile } from "./sailor-templates.js";
 import { hashManagedFile } from "./install-manifest.js";
 import type { InstallManifest, ManagedFileKind } from "./install-manifest.js";
 
@@ -10,7 +10,7 @@ export const INSTALL_ACTIONS = ["create", "keep", "replace"] as const;
 export type InstallAction = (typeof INSTALL_ACTIONS)[number];
 
 export interface PlannedFile {
-  /** Path relative to the `.harness` directory, with `/` separators. */
+  /** Path relative to the `.sailor` directory, with `/` separators. */
   readonly path: string;
   readonly action: InstallAction;
   /** What will be on disk afterwards: the project's copy of a kept file. */
@@ -33,7 +33,7 @@ export interface InstallationPlan {
 
 export interface PlanInstallationInput {
   readonly projectRoot: string;
-  /** Managed content keyed by path relative to `.harness`, already rendered. */
+  /** Managed content keyed by path relative to `.sailor`, already rendered. */
   readonly desired: readonly PlannedFileSource[];
   readonly manifest: InstallManifest | null;
   readonly update: boolean;
@@ -47,7 +47,7 @@ export interface PlannedFileSource {
 
 /** Renders a template file into the content the installer intends to write. */
 export const toPlannedFileSource = (
-  file: HarnessTemplateFile,
+  file: SailorTemplateFile,
   contents: string
 ): PlannedFileSource => ({
   path: file.installedPath,
@@ -61,7 +61,7 @@ export const toPlannedFileSource = (
  * Every conflict in the project is collected before any is raised, so a person
  * resolving a half-adopted installation sees the whole list once instead of
  * discovering the next one on every re-run. Nothing is written until the plan
- * is conflict-free, which is what makes `harness init` safe to attempt.
+ * is conflict-free, which is what makes `sailor init` safe to attempt.
  */
 export const planInstallation = (
   input: PlanInstallationInput
@@ -76,9 +76,9 @@ export const planInstallation = (
   const conflicts: string[] = [];
 
   for (const source of input.desired) {
-    const absolute = harnessPath(input.projectRoot, ...source.path.split("/"));
+    const absolute = sailorPath(input.projectRoot, ...source.path.split("/"));
     const existing = readTextFileIfPresent(absolute);
-    const where = `${HARNESS_DIRECTORY}/${source.path}`;
+    const where = `${SAILOR_DIRECTORY}/${source.path}`;
     // The hash recorded is always of what will be on disk once the install
     // finishes, which for a kept file is the copy already there.
     const plan = (action: InstallAction, contents: string): void => {
@@ -112,7 +112,7 @@ export const planInstallation = (
 
     if (recorded === undefined) {
       conflicts.push(
-        `${where} already exists and was not installed by the harness`
+        `${where} already exists and was not installed by the sailor`
       );
       continue;
     }
@@ -133,9 +133,9 @@ export const planInstallation = (
   }
 
   if (conflicts.length > 0) {
-    throw new HarnessError(
+    throw new SailorError(
       "unsafe-overwrite",
-      `installing would overwrite ${String(conflicts.length)} file(s) the harness does not own`,
+      `installing would overwrite ${String(conflicts.length)} file(s) the sailor does not own`,
       conflicts
     );
   }

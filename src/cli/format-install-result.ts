@@ -1,11 +1,8 @@
 import { join } from "node:path";
 
-import {
-  HARNESS_DIRECTORY,
-  HARNESS_GIT_HOOKS_PATH,
-} from "../harness/layout.js";
-import { CI_TEMPLATE_PATH } from "../install/diagnose-harness.js";
-import type { InstallHarnessResult } from "../install/install-harness.js";
+import { SAILOR_DIRECTORY, SAILOR_GIT_HOOKS_PATH } from "../sailor/layout.js";
+import { CI_TEMPLATE_PATH } from "../install/diagnose-sailor.js";
+import type { InstallSailorResult } from "../install/install-sailor.js";
 
 const plural = (count: number, noun: string): string =>
   `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
@@ -17,11 +14,11 @@ const plural = (count: number, noun: string): string =>
  * that changed; files that were already correct are only counted, so a routine
  * re-run stays short enough to read.
  */
-export const formatInstallResult = (result: InstallHarnessResult): string => {
+export const formatInstallResult = (result: InstallSailorResult): string => {
   const lines = [
-    `Harness ${result.harnessVersion} installed in ${join(
+    `Sailor ${result.sailorVersion} installed in ${join(
       result.projectRoot,
-      HARNESS_DIRECTORY
+      SAILOR_DIRECTORY
     )}`,
     "",
     `${plural(result.created.length, "file")} created, ${String(
@@ -59,7 +56,7 @@ export const formatInstallResult = (result: InstallHarnessResult): string => {
       "",
       `${
         result.gitHooksPathChanged ? "git now dispatches" : "git dispatches"
-      } ${plural(result.hooks.length, "hook")} through ${HARNESS_GIT_HOOKS_PATH}`,
+      } ${plural(result.hooks.length, "hook")} through ${SAILOR_GIT_HOOKS_PATH}`,
       ...result.hooks.map(
         (hook) =>
           `  ${hook.hook}${
@@ -69,11 +66,11 @@ export const formatInstallResult = (result: InstallHarnessResult): string => {
     );
 
     // Said once, when the hooks are first taken over. A hook is skippable
-    // with `--no-verify`, so leaving this to `harness doctor` would mean the
-    // one person who installed the harness never hears it.
+    // with `--no-verify`, so leaving this to `sailor doctor` would mean the
+    // one person who installed the sailor never hears it.
     if (result.gitHooksPathChanged) {
       lines.push(
-        `A hook can be skipped with \`--no-verify\`. Copy ${HARNESS_DIRECTORY}/${CI_TEMPLATE_PATH} into .github/workflows/ so CI runs the same gates.`
+        `A hook can be skipped with \`--no-verify\`. Copy ${SAILOR_DIRECTORY}/${CI_TEMPLATE_PATH} into .github/workflows/ so CI runs the same gates.`
       );
     }
 
@@ -81,7 +78,7 @@ export const formatInstallResult = (result: InstallHarnessResult): string => {
       lines.push(
         result.previousHooksPathScope === "inherited"
           ? `\`core.hooksPath\` was \`${result.previousHooksPath}\`, set outside this repository in your global or system git config. Its hooks were chained, but they are not part of the project, so they will not exist for anyone else who checks it out.`
-          : `The project's own \`core.hooksPath\` was \`${result.previousHooksPath}\`; it is recorded in ${HARNESS_DIRECTORY}/version.json.`
+          : `The project's own \`core.hooksPath\` was \`${result.previousHooksPath}\`; it is recorded in ${SAILOR_DIRECTORY}/version.json.`
       );
     }
   }
@@ -90,7 +87,7 @@ export const formatInstallResult = (result: InstallHarnessResult): string => {
     lines.push(
       "",
       result.dependenciesInstalled
-        ? `Runtime dependencies resolved in ${HARNESS_DIRECTORY}/node_modules`
+        ? `Runtime dependencies resolved in ${SAILOR_DIRECTORY}/node_modules`
         : "Runtime dependencies were not installed"
     );
   } else {
@@ -98,7 +95,7 @@ export const formatInstallResult = (result: InstallHarnessResult): string => {
       "",
       `The runtime could not be resolved, so git hooks were left alone and this project still commits normally:`,
       ...result.dependencyFailure.split("\n").map((line) => `  ${line}`),
-      "Everything above is on disk; re-run `harness init` once that is fixed."
+      "Everything above is on disk; re-run `sailor init` once that is fixed."
     );
   }
 

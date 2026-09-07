@@ -60,7 +60,7 @@ export const ENVIRONMENT_ALLOWLIST = [
  * A negative pid means "the process group", which is why the child is spawned
  * `detached`. Two cases must not reach that call. An absent pid would become
  * `process.kill(-0)`, and nought is not a group - it means *the caller's own*
- * group, so a spawn that never started would signal the harness and everything
+ * group, so a spawn that never started would signal the sailor and everything
  * running alongside it. And a group that has already exited raises ESRCH
  * rather than returning quietly, which inside a timer callback is an unhandled
  * throw.
@@ -165,7 +165,7 @@ export const NODE_COMMAND_RUNNER_DEFAULTS: NodeCommandRunnerOptions = {
  *
  * `request.timeoutMs` must be positive; the timer is always armed. The timeout
  * is tracked here rather than through `spawn`'s own `timeout` option so that a
- * process the harness killed is reported distinctly from one an external signal
+ * process the sailor killed is reported distinctly from one an external signal
  * killed.
  */
 export const createNodeCommandRunner =

@@ -1,11 +1,11 @@
-import { HarnessError, describeFailure } from "../harness/harness-error.js";
-import { readPackageVersion } from "../harness/package-version.js";
+import { SailorError, describeFailure } from "../sailor/sailor-error.js";
+import { readPackageVersion } from "../sailor/package-version.js";
 import type { CommandRunner } from "../processes/command-runner.js";
 import {
   RuleResolutionError,
   RuleValidationError,
 } from "../rules/rule-error.js";
-import { CLI_EXIT_CODES, exitCodeForHarnessError } from "./exit-codes.js";
+import { CLI_EXIT_CODES, exitCodeForSailorError } from "./exit-codes.js";
 import { parseCliArguments } from "./parse-cli-arguments.js";
 import type { CliCommand, CliInvocation } from "./parse-cli-arguments.js";
 
@@ -28,7 +28,7 @@ export interface CliContext {
   /** Directory the CLI was invoked from, not necessarily the project root. */
   readonly cwd: string;
   readonly streams: CliStreams;
-  /** Root of the installed `agentic-harness` package; resolved by the bin entry. */
+  /** Root of the installed `sailor` package; resolved by the bin entry. */
   readonly packageRootDirectory: string;
   readonly runner: CommandRunner;
   readonly now: () => Date;
@@ -58,11 +58,11 @@ export interface RunCliOptions {
   readonly commands: CliCommandRegistry;
 }
 
-const HELP_TEXT = `Usage: harness <command> [options]
+const HELP_TEXT = `Usage: sailor <command> [options]
 
 Commands:
-  init [--update]            Install or update .harness in this project
-  doctor                     Check that the installed harness can run
+  init [--update]            Install or update .sailor in this project
+  doctor                     Check that the installed sailor can run
   rules validate             Load and resolve every rule bundle
   rules explain [--agent id] Show the resolved rules, or one agent's policy
   gate <phase> [--agent id]  Run the checks that apply to a workflow phase
@@ -72,15 +72,15 @@ Phases:
 
 Options:
   --agent <id>               Restrict the command to one agent
-  --update                   Replace managed files the harness still owns
+  --update                   Replace managed files the sailor still owns
   -h, --help                 Show this message
-  -v, --version              Show the harness version
+  -v, --version              Show the sailor version
 
 Exit codes:
   0 success
   1 unexpected failure
   2 the command line could not be understood
-  3 invalid or missing harness configuration
+  3 invalid or missing sailor configuration
   4 a required check failed and blocked the phase
   5 the action was unsafe and was not taken
 `;
@@ -105,7 +105,7 @@ export const runCli = async (options: RunCliOptions): Promise<number> => {
 
   if (parsed.kind === "usage-error") {
     options.streams.stderr.write(
-      `harness: ${parsed.message}\nRun \`harness --help\` for usage.\n`
+      `sailor: ${parsed.message}\nRun \`sailor --help\` for usage.\n`
     );
 
     return CLI_EXIT_CODES.usage;
@@ -124,7 +124,7 @@ export const runCli = async (options: RunCliOptions): Promise<number> => {
 
     if (handler === undefined) {
       options.streams.stderr.write(
-        `harness: \`${parsed.invocation.command}\` is not available in this build\n`
+        `sailor: \`${parsed.invocation.command}\` is not available in this build\n`
       );
 
       return CLI_EXIT_CODES.failure;
@@ -140,10 +140,10 @@ export const runCli = async (options: RunCliOptions): Promise<number> => {
       nodeVersion: options.nodeVersion,
     });
   } catch (error: unknown) {
-    options.streams.stderr.write(`harness: ${describeFailure(error)}\n`);
+    options.streams.stderr.write(`sailor: ${describeFailure(error)}\n`);
 
-    if (error instanceof HarnessError) {
-      return exitCodeForHarnessError(error.kind);
+    if (error instanceof SailorError) {
+      return exitCodeForSailorError(error.kind);
     }
 
     // A rule bundle that fails to parse or resolve is a configuration problem,

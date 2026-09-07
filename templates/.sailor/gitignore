@@ -1,0 +1,16 @@
+# Managed by Sailor.
+#
+# Everything ignored here is machine-local: a private dependency tree, and the
+# transcripts, contexts, locks and logs of individual runs. Rules, agent
+# definitions and task state are deliberately *not* ignored, because a workflow
+# that cannot be reviewed in a pull request is not governed by anything.
+#
+# An agent context is derived from all three of those, so a checkout that has
+# none writes its own rather than needing the ones another machine wrote.
+
+node_modules/
+state/
+
+*.log
+*.tmp
+*.lock

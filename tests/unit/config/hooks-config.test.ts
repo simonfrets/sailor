@@ -2,7 +2,7 @@ import {
   EXISTING_HOOK_POLICIES,
   loadHooksConfig,
 } from "../../../src/config/hooks-config.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { captureError } from "../../helpers/expect-error.js";
 
 const load = (text: string) =>
@@ -45,20 +45,20 @@ describe("loadHooksConfig", () => {
         load(
           "version: 1\nhooks:\n  - hook: pre-commit\n    phase: pre-commit\n  - hook: pre-commit\n    phase: pre-push\n"
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
     expect(error.details.join("\n")).toContain("more than once");
   });
 
-  it("rejects a git hook the harness does not manage", () => {
+  it("rejects a git hook the sailor does not manage", () => {
     const error = captureError(
       () =>
         load(
           "version: 1\nhooks:\n  - hook: post-merge\n    phase: pre-commit\n"
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("hook");
@@ -68,7 +68,7 @@ describe("loadHooksConfig", () => {
     const error = captureError(
       () =>
         load("version: 1\nhooks:\n  - hook: pre-commit\n    phase: deploy\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("phase");
@@ -77,7 +77,7 @@ describe("loadHooksConfig", () => {
   it("rejects an existing-hook policy that would replace a hook", () => {
     const error = captureError(
       () => load("version: 1\nonExistingHook: replace\n"),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("onExistingHook");

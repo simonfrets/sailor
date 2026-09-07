@@ -1,4 +1,4 @@
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { readTaskFile, requireTask } from "../../../src/tasks/task-file.js";
 import type { Task } from "../../../src/tasks/task-schema.js";
 import {
@@ -9,7 +9,7 @@ import {
 import { updateTaskFile } from "../../../src/tasks/update-task-file.js";
 import { completedStages, pendingStages } from "../../../src/tasks/workflow.js";
 import { captureRejection } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { RULE_SET_SHA256 } from "../../helpers/tasks.js";
 import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
@@ -100,7 +100,7 @@ const runPipeline = async (root: string): Promise<void> => {
 
 describe("a task driven through the file on disk", () => {
   it("reaches completed with every revision recorded once, in order", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await runPipeline(root);
 
@@ -118,7 +118,7 @@ describe("a task driven through the file on disk", () => {
   });
 
   it("carries each transition's own instant through the file", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await runPipeline(root);
 
@@ -137,7 +137,7 @@ describe("a task driven through the file on disk", () => {
   });
 
   it("rejects a second writer working from the revision it read first", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await updateTaskFile(root, (file) =>
       createTask(file, {
@@ -175,7 +175,7 @@ describe("a task driven through the file on disk", () => {
             at: AT,
           })
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("stale-task-revision");

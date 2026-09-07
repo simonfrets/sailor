@@ -139,7 +139,7 @@ describe("phase gates against a real project", () => {
     checks:
       - id: absent
         runner: command
-        argv: ["agentic-harness-no-such-binary"]
+        argv: ["sailor-no-such-binary"]
         phases: [pre-commit]
         timeoutMs: 10000
 `,
@@ -195,7 +195,7 @@ describe("phase gates against a real project", () => {
   it("runs a real package script discovered from the project", async () => {
     const root = buildProject({
       manifest: {
-        name: "tmp-harness-fixture",
+        name: "tmp-sailor-fixture",
         private: true,
         scripts: { lint: "node -e \"process.stdout.write('linted')\"" },
       },

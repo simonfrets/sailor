@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { AgentId } from "../agents/agent-id.js";
-import { HarnessError } from "../harness/harness-error.js";
+import { SailorError } from "../sailor/sailor-error.js";
 import { TASK_FILE_SOURCE, findTask, requireTask } from "./task-file.js";
 import { STATE_AGENTS, describeStateOwner, taskSchema } from "./task-schema.js";
 import type {
@@ -26,7 +26,7 @@ const replaceTask = (file: TaskFile, task: Task): TaskFile => ({
 });
 
 /**
- * Validates a task the harness just built, rather than only the file it ends
+ * Validates a task the sailor just built, rather than only the file it ends
  * up in. A rejected run id or context path is reported against the change that
  * introduced it instead of against the whole document one layer later.
  */
@@ -34,7 +34,7 @@ const validated = (task: Task, what: string): Task => {
   const result = taskSchema.safeParse(task);
 
   if (!result.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `${what} would put invalid state in ${TASK_FILE_SOURCE}`,
       result.error.issues.map(
@@ -55,7 +55,7 @@ const validated = (task: Task, what: string): Task => {
  */
 const requireRevision = (task: Task, expected: number): void => {
   if (task.revision !== expected) {
-    throw new HarnessError(
+    throw new SailorError(
       "stale-task-revision",
       `task \`${task.id}\` is at revision ${String(task.revision)}, not the expected ${String(expected)}`,
       [
@@ -85,7 +85,7 @@ export const createTask = (
   request: CreateTaskRequest
 ): TaskFile => {
   if (findTask(file, request.id) !== null) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `${TASK_FILE_SOURCE} already has a task \`${request.id}\``,
       ["a task id identifies one piece of work for the life of the project"]
@@ -147,14 +147,14 @@ export const approveSpecification = (
   requireRevision(task, request.expectedRevision);
 
   if (task.state !== "awaiting_approval") {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `task \`${task.id}\` is \`${task.state}\`, so there is no specification awaiting approval`
     );
   }
 
   if (task.approvedAt !== null) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `task \`${task.id}\` was already approved by ${task.approvedBy ?? "?"} at ${task.approvedAt}`
     );
@@ -242,7 +242,7 @@ export const transitionTask = (
   const allowed = allowedTransitions(task);
 
   if (!allowed.includes(request.to)) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `task \`${task.id}\` cannot move from \`${task.state}\` to \`${request.to}\``,
       [
@@ -254,7 +254,7 @@ export const transitionTask = (
   }
 
   if (request.toAgent !== STATE_AGENTS[request.to]) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `task \`${task.id}\` cannot enter \`${request.to}\` as \`${request.toAgent ?? "null"}\``,
       [
@@ -265,7 +265,7 @@ export const transitionTask = (
   }
 
   if (request.to === "implementing" && task.approvedAt === null) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `task \`${task.id}\` has no approved specification, so implementation cannot start`,
       ["approve the specification first; it is recorded as its own revision"]
@@ -276,7 +276,7 @@ export const transitionTask = (
   const interrupting = isInterruptedState(request.to);
 
   if (interrupting && failure === null) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `moving task \`${task.id}\` to \`${request.to}\` must record why`,
       ["a task nobody can see the reason for is a task nobody can recover"]
@@ -284,7 +284,7 @@ export const transitionTask = (
   }
 
   if (!interrupting && failure !== null) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-transition",
       `moving task \`${task.id}\` to \`${request.to}\` must not record a failure`,
       ["a transition back into the pipeline is the recovery, not the failure"]

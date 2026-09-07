@@ -1,0 +1,52 @@
+version: 1
+id: sailor-typescript
+description: TypeScript correctness rules for projects that compile TypeScript
+
+rules:
+  - id: typescript.no-explicit-any
+    description: Reject new explicit any types
+    severity: error
+    appliesTo: [cleaner, coder, hardener]
+    scopes: ["**/*.ts", "**/*.tsx"]
+    instruction: >
+      Do not introduce explicit any. Use a concrete type, a generic, a
+      discriminated union, or unknown followed by narrowing. any disables the
+      checking that the rest of this rule set relies on, so one any silently
+      widens into every value derived from it.
+    checks:
+      - id: native-lint
+        runner: project-script
+        script: lint
+        phases: [pre-handoff, pre-commit]
+        required: true
+        whenMissing: fail
+        timeoutMs: 300000
+
+  - id: typescript.types-check-cleanly
+    description: The type checker passes before a handoff
+    severity: error
+    appliesTo: [cleaner, coder, hardener]
+    scopes: ["**/*.ts", "**/*.tsx"]
+    instruction: >
+      Leave the type checker clean. A type error is a defect that has already
+      been found; handing it to the next agent only makes it more expensive to
+      diagnose.
+    checks:
+      - id: native-typecheck
+        runner: project-script
+        script: typecheck
+        phases: [pre-handoff, pre-commit]
+        required: true
+        whenMissing: fail
+        timeoutMs: 300000
+
+  - id: typescript.no-gate-suppressions
+    description: Suppression comments are not a way past a gate
+    severity: error
+    appliesTo: [cleaner, coder, hardener]
+    scopes: ["**/*.ts", "**/*.tsx"]
+    instruction: >
+      Do not add @ts-ignore, @ts-expect-error, eslint-disable or a coverage
+      ignore comment in order to make a check pass. Fix the code the check is
+      objecting to. If a suppression is genuinely correct, it needs a comment
+      giving the reason, and the reason has to be stated in the handoff.

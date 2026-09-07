@@ -1,7 +1,7 @@
 import { createDefaultCliCommands } from "../../../src/cli/default-commands.js";
 import { CLI_EXIT_CODES } from "../../../src/cli/exit-codes.js";
 import { runCli } from "../../../src/cli/run-cli.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { createRecordedStreams } from "../../helpers/cli-streams.js";
 import {
   createFakeCommandRunner,
@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 const BASE_BUNDLE = ruleBundleYaml({
-  bundleId: "harness-base",
+  bundleId: "sailor-base",
   ruleId: "base.tests",
   instruction: "Add or update tests with every behaviour change.",
   checks: projectScriptCheckYaml({
@@ -31,9 +31,9 @@ const BASE_BUNDLE = ruleBundleYaml({
 });
 
 const project = (
-  extra: Parameters<typeof buildHarnessProject>[0] = {}
+  extra: Parameters<typeof buildSailorProject>[0] = {}
 ): string =>
-  buildHarnessProject({
+  buildSailorProject({
     manifest: {
       name: "host",
       version: "0.0.0",
@@ -82,7 +82,7 @@ const run = async (
   };
 };
 
-describe("harness rules validate", () => {
+describe("sailor rules validate", () => {
   it("resolves the installed rule set", async () => {
     const result = await run(project(), ["rules", "validate"]);
 
@@ -97,12 +97,12 @@ describe("harness rules validate", () => {
     const result = await run(root, ["rules", "validate"]);
 
     expect(result.exitCode).toBe(CLI_EXIT_CODES.invalidConfig);
-    expect(result.stderr).toContain(".harness/rules/base.yaml:2:5");
+    expect(result.stderr).toContain(".sailor/rules/base.yaml:2:5");
     expect(result.stdout).toBe("");
   });
 
-  it("reports a project that has no harness installed", async () => {
-    const root = buildHarnessProject({ manifest: { name: "host" } });
+  it("reports a project that has no sailor installed", async () => {
+    const root = buildSailorProject({ manifest: { name: "host" } });
 
     const result = await run(root, ["rules", "validate"]);
 
@@ -111,7 +111,7 @@ describe("harness rules validate", () => {
   });
 });
 
-describe("harness rules explain", () => {
+describe("sailor rules explain", () => {
   it("lists the resolved rules with their origins", async () => {
     const result = await run(project(), ["rules", "explain"]);
 
@@ -141,7 +141,7 @@ describe("harness rules explain", () => {
   });
 });
 
-describe("harness gate", () => {
+describe("sailor gate", () => {
   it("runs the project script a rule names and passes", async () => {
     const result = await run(project(), ["gate", "pre-commit"]);
 
@@ -174,7 +174,7 @@ describe("harness gate", () => {
     const root = project({
       rules: {
         "base.yaml": ruleBundleYaml({
-          bundleId: "harness-base",
+          bundleId: "sailor-base",
           ruleId: "base.style",
           severity: "warning",
           checks: projectScriptCheckYaml({
@@ -204,7 +204,7 @@ describe("harness gate", () => {
     const root = project({
       rules: {
         "base.yaml": ruleBundleYaml({
-          bundleId: "harness-base",
+          bundleId: "sailor-base",
           ruleId: "base.style",
           severity: "warning",
           checks: projectScriptCheckYaml({

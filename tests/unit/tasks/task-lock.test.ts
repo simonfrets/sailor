@@ -8,7 +8,7 @@ import {
 import { join } from "node:path";
 import { lock } from "proper-lockfile";
 
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { readTaskFile, taskFilePath } from "../../../src/tasks/task-file.js";
 import {
   TASK_LOCK_DEFAULTS,
@@ -18,7 +18,7 @@ import {
 } from "../../../src/tasks/task-lock.js";
 import { updateTaskFile } from "../../../src/tasks/update-task-file.js";
 import { captureRejection } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { buildTask } from "../../helpers/tasks.js";
 import {
   createTempDirectory,
@@ -33,14 +33,14 @@ const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 const lockPath = (root: string): string =>
-  join(root, ".harness", "tasks.yaml.lock");
+  join(root, ".sailor", "tasks.yaml.lock");
 
-/** Takes the same filesystem lock a second harness process would take. */
+/** Takes the same filesystem lock a second sailor process would take. */
 const holdTaskLock = (root: string): Promise<() => Promise<void>> =>
   lock(taskFilePath(root), { realpath: false, stale: 10_000 });
 
 /**
- * Leaves behind the lock a harness process killed mid-transition leaves.
+ * Leaves behind the lock a sailor process killed mid-transition leaves.
  *
  * The directory is what `proper-lockfile` creates, and the mtime is what its
  * heartbeat would have been refreshing. Backdating it is how a holder that
@@ -56,7 +56,7 @@ const abandonTaskLock = (root: string, ageMs: number): void => {
 
 describe("withTaskLock", () => {
   it("takes the lock before the task file it names exists", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     expect(existsSync(taskFilePath(root))).toBe(false);
 
@@ -64,12 +64,12 @@ describe("withTaskLock", () => {
     expect(existsSync(lockPath(root))).toBe(false);
   });
 
-  it("refuses a project with no harness rather than installing half of one", async () => {
-    // `harness init` creates `.harness`; nothing else may. Creating it here to
+  it("refuses a project with no sailor rather than installing half of one", async () => {
+    // `sailor init` creates `.sailor`; nothing else may. Creating it here to
     // give the lock somewhere to live would leave a directory holding task
     // state and no agents, rules or hooks behind every task call, against any
     // path the caller happened to pass.
-    const root = createTempDirectory("agentic-harness-uninstalled-");
+    const root = createTempDirectory("sailor-uninstalled-");
     let ran = false;
 
     const error = await captureRejection(
@@ -79,20 +79,20 @@ describe("withTaskLock", () => {
 
           return "ran";
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("not-installed");
     expect(ran).toBe(false);
-    expect(existsSync(join(root, ".harness"))).toBe(false);
+    expect(existsSync(join(root, ".sailor"))).toBe(false);
   });
 
   it("waits for a lock another process is holding", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const releaseOther = await holdTaskLock(root);
     const order: string[] = [];
     const pending = withTaskLock(root, () => {
-      order.push("harness ran");
+      order.push("sailor ran");
 
       return "done";
     });
@@ -102,12 +102,12 @@ describe("withTaskLock", () => {
     await releaseOther();
 
     await expect(pending).resolves.toBe("done");
-    // Without mutual exclusion the harness would have run first, immediately.
-    expect(order).toEqual(["other released", "harness ran"]);
+    // Without mutual exclusion the sailor would have run first, immediately.
+    expect(order).toEqual(["other released", "sailor ran"]);
   });
 
   it("reports a lock it cannot get rather than writing anyway", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const releaseOther = await holdTaskLock(root);
     let ran = false;
     const error = await captureRejection(
@@ -121,7 +121,7 @@ describe("withTaskLock", () => {
           },
           { staleMs: 10_000, retries: 0 }
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("task-lock-failed");
@@ -131,16 +131,16 @@ describe("withTaskLock", () => {
   });
 
   it("names a failure that is not contention instead of blaming a process", async () => {
-    // `.harness` as a regular file makes the lock's own `mkdir` fail with
+    // `.sailor` as a regular file makes the lock's own `mkdir` fail with
     // `ENOTDIR`. That stands for every cause that is not contention - `EACCES`
     // on a directory the process cannot write, `ENOSPC`, a parent that is not
     // a directory - and none of them is answered by waiting for anyone to let
     // go, which is what the one headline this reported used to tell an
     // operator to do.
-    const root = createTempDirectory("agentic-harness-unlockable-");
+    const root = createTempDirectory("sailor-unlockable-");
     let ran = false;
 
-    writeFileSync(join(root, ".harness"), "");
+    writeFileSync(join(root, ".sailor"), "");
 
     const error = await captureRejection(
       () =>
@@ -153,7 +153,7 @@ describe("withTaskLock", () => {
           },
           { staleMs: 10_000, retries: 0 }
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("task-lock-failed");
@@ -165,14 +165,14 @@ describe("withTaskLock", () => {
   });
 
   it("takes over a lock left behind by a process that died", async () => {
-    // A killed harness leaves the lock directory with nothing behind it: no
+    // A killed sailor leaves the lock directory with nothing behind it: no
     // holder, no heartbeat, and only its age to say so. This is the case
     // `staleMs` exists for, and no test reached it before.
     //
     // The age is a fixed 1.5s rather than one derived from the window, which
     // is the point: derived, it would rescale with the window and pass at any
     // setting, including the shipped one it exists to reject.
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     abandonTaskLock(root, 1_500);
 
@@ -194,7 +194,7 @@ describe("withTaskLock", () => {
     // from any age at all, the worst case being a process killed the instant
     // before: an abandoned lock is only taken over by an attempt made after it
     // goes stale, so a budget that expires first reports `ELOCKED` for the
-    // rest of the window - and `harness gate pre-commit` exits non-zero on
+    // rest of the window - and `sailor gate pre-commit` exits non-zero on
     // that, blocking commits on a lock nobody is holding.
     expect(taskLockRetryBudgetMs(TASK_LOCK_DEFAULTS)).toBeGreaterThan(
       taskLockStaleMs(TASK_LOCK_DEFAULTS)
@@ -202,7 +202,7 @@ describe("withTaskLock", () => {
   });
 
   it("releases the lock when the work throws", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await expect(
       withTaskLock(root, () => {
@@ -220,7 +220,7 @@ describe("withTaskLock", () => {
     // The library's default `onCompromised` throws from a timer callback,
     // which is an uncaught exception. The heartbeat is driven from `stale`,
     // so the shortest honest version of this test waits for one interval.
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const error = await captureRejection(
       () =>
         withTaskLock(
@@ -233,17 +233,17 @@ describe("withTaskLock", () => {
           },
           { staleMs: 2_000, retries: 0 }
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("task-lock-failed");
-    expect(error.message).toContain("was lost while the harness held it");
+    expect(error.message).toContain("was lost while the sailor held it");
   });
 });
 
 describe("updateTaskFile", () => {
   it("writes what the mutator returned", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await updateTaskFile(root, (file) => ({
       ...file,
@@ -254,7 +254,7 @@ describe("updateTaskFile", () => {
   });
 
   it("serialises overlapping updates instead of losing one", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     // The mutator yields between the read and the write, which is exactly what
     // a real one does when it writes the next agent's context. Without the
     // lock both would read an empty file and the second would overwrite the
@@ -276,11 +276,11 @@ describe("updateTaskFile", () => {
   });
 
   it("leaves the file untouched when the mutator rejects the change", async () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
 
     await expect(
       updateTaskFile(root, () => {
-        throw new HarnessError("stale-task-revision", "expected revision 4");
+        throw new SailorError("stale-task-revision", "expected revision 4");
       })
     ).rejects.toThrow("expected revision 4");
 

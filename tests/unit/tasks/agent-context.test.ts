@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentDefinition } from "../../../src/agents/agent-definition.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import {
   AGENT_CONTEXT_FILE,
   agentContextDirectory,
@@ -12,7 +12,7 @@ import {
   writeAgentContext,
 } from "../../../src/tasks/agent-context.js";
 import { captureError } from "../../helpers/expect-error.js";
-import { buildHarnessProject } from "../../helpers/harness-project.js";
+import { buildSailorProject } from "../../helpers/sailor-project.js";
 import { RULE_SET_SHA256, buildTask } from "../../helpers/tasks.js";
 import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
@@ -54,7 +54,7 @@ const context = (
 describe("agentContextDirectory", () => {
   it("gives every agent in every run its own directory", () => {
     expect(agentContextDirectory("run-1", "coder")).toBe(
-      ".harness/state/runs/run-1/agents/coder"
+      ".sailor/state/runs/run-1/agents/coder"
     );
     expect(agentContextDirectory("run-1", "cleaner")).not.toBe(
       agentContextDirectory("run-1", "coder")
@@ -63,14 +63,14 @@ describe("agentContextDirectory", () => {
       agentContextDirectory("run-1", "coder")
     );
     expect(agentContextFile("run-1", "coder")).toBe(
-      ".harness/state/runs/run-1/agents/coder/context.json"
+      ".sailor/state/runs/run-1/agents/coder/context.json"
     );
   });
 
   it("stays inside the ignored state directory", () => {
     // Contexts are transcripts of a run, not reviewable project state.
     expect(
-      agentContextDirectory("run-1", "qa").startsWith(".harness/state/")
+      agentContextDirectory("run-1", "qa").startsWith(".sailor/state/")
     ).toBe(true);
   });
 });
@@ -126,7 +126,7 @@ describe("buildAgentContext", () => {
             projectScripts: ["test"],
           })
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -140,7 +140,7 @@ describe("buildAgentContext", () => {
   it("refuses to build a context it could not write back", () => {
     const error = captureError(
       () => context(definition("coder"), { policy: "" }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -150,10 +150,10 @@ describe("buildAgentContext", () => {
 
 describe("writeAgentContext", () => {
   it("writes into the directory the context itself names", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const path = writeAgentContext(root, context(definition("coder")));
 
-    expect(path).toBe(".harness/state/runs/run-1/agents/coder");
+    expect(path).toBe(".sailor/state/runs/run-1/agents/coder");
     expect(
       JSON.parse(
         readFileSync(join(root, path, AGENT_CONTEXT_FILE), "utf8")
@@ -162,7 +162,7 @@ describe("writeAgentContext", () => {
   });
 
   it("leaves one agent's context untouched when the next is written", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const coderPath = writeAgentContext(root, context(definition("coder")));
 
     const before = readFileSync(
@@ -178,7 +178,7 @@ describe("writeAgentContext", () => {
   });
 
   it("keeps two attempts of one agent apart by run", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const first = writeAgentContext(root, context(definition("coder")));
     const second = writeAgentContext(
       root,
@@ -193,7 +193,7 @@ describe("writeAgentContext", () => {
   });
 
   it("writes a context that is readable but not executable", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const path = writeAgentContext(root, context(definition("coder")));
 
     expect(statSync(join(root, path, AGENT_CONTEXT_FILE)).mode & 0o777).toBe(
@@ -205,7 +205,7 @@ describe("writeAgentContext", () => {
 describe("readAgentContext", () => {
   it.each([
     ["a parent segment", "../outside-context"],
-    ["a parent segment after a valid prefix", ".harness/../../outside"],
+    ["a parent segment after a valid prefix", ".sailor/../../outside"],
     ["an absolute path", "/etc"],
   ])("refuses a context path that leaves the project: %s", (_label, path) => {
     // A context says which files an agent may write, so loading one from
@@ -214,8 +214,8 @@ describe("readAgentContext", () => {
     // cannot reach here - it builds its path from validated identifiers - but
     // `readAgentContext` is a public export taking a string from its caller.
     const error = captureError(
-      () => readAgentContext(buildHarnessProject(), path),
-      HarnessError
+      () => readAgentContext(buildSailorProject(), path),
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -223,13 +223,13 @@ describe("readAgentContext", () => {
   });
 
   it("round-trips what was written", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const written = context(definition("coder"), {
       handoff: {
         fromAgent: "specifier",
         fromState: "awaiting_approval",
         gateReportIds: ["report-1"],
-        artifactPaths: [".harness/state/runs/run-1/agents/specifier/spec.md"],
+        artifactPaths: [".sailor/state/runs/run-1/agents/specifier/spec.md"],
         failure: null,
       },
     });
@@ -240,7 +240,7 @@ describe("readAgentContext", () => {
   });
 
   it("hands every reader its own copy, and refuses to let it be changed", () => {
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const path = writeAgentContext(root, context(definition("coder")));
     const first = readAgentContext(root, path);
     const second = readAgentContext(root, path);
@@ -261,26 +261,26 @@ describe("readAgentContext", () => {
     // project mid-run carries the path out of `tasks.yaml` and none of the
     // files it names. A resumed run has to build the one it needs, which it
     // can only decide to do if absence is distinguishable from damage.
-    const root = buildHarnessProject();
+    const root = buildSailorProject();
     const error = captureError(
       () => readAgentContext(root, agentContextDirectory("run-1", "coder")),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("missing-context");
     expect(error.message).toContain("run-1/agents/coder");
-    expect(error.details.join("\n")).toContain(".harness/tasks.yaml");
+    expect(error.details.join("\n")).toContain(".sailor/tasks.yaml");
   });
 
   it("reports a context file that is json but not a context", () => {
-    const root = buildHarnessProject({
+    const root = buildSailorProject({
       files: {
-        ".harness/state/runs/run-1/agents/coder/context.json": '{"version":1}',
+        ".sailor/state/runs/run-1/agents/coder/context.json": '{"version":1}',
       },
     });
     const error = captureError(
       () => readAgentContext(root, agentContextDirectory("run-1", "coder")),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");

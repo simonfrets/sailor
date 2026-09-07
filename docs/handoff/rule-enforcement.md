@@ -11,12 +11,12 @@
 
 ---
 
-# Agentic Harness: implementation handoff
+# Sailor: implementation handoff
 
 ## Objective
 
-Continue building Agentic Harness so that an installed project is governed by
-project-local `.harness/` rules at three levels:
+Continue building Sailor so that an installed project is governed by
+project-local `.sailor/` rules at three levels:
 
 1. resolved rules are compiled into every agent prompt;
 2. executable gates block invalid workflow transitions and handoffs;
@@ -27,7 +27,7 @@ prompt; a required gate must still fail the handoff or commit.
 
 ## Current repository state
 
-- Worktree: `<PROJECTS>/agentic-harness-codex-basic-structure`
+- Worktree: `<PROJECTS>/sailor-codex-basic-structure`
 - Branch: `codex/basic-structure`
 - HEAD: `edb1793 Add TypeScript package skeleton and pre-commit quality gates`
 - Worktree was clean at handoff creation.
@@ -56,13 +56,13 @@ Already verified on the current commit:
 
 ## Non-negotiable design decisions
 
-1. Everything installed into a host project belongs under `.harness/`, except
+1. Everything installed into a host project belongs under `.sailor/`, except
    for the repository-local Git `core.hooksPath` setting.
 2. Never overwrite a host project's ESLint, TypeScript, package, Husky, or Git
    hook configuration silently.
-3. Default validation mode is `native-plus-harness`:
+3. Default validation mode is `native-plus-sailor`:
    - run discovered native project scripts;
-   - run harness correctness/maintainability gates;
+   - run sailor correctness/maintainability gates;
    - avoid competing stylistic rules unless explicitly enabled.
 4. Rules are data. Runtime code validates, resolves, compiles, and executes
    them. Adding a normal custom rule must not require changing TypeScript.
@@ -71,9 +71,9 @@ Already verified on the current commit:
 6. Tool permissions must be enforced by the adapter/runtime, not merely written
    into the model prompt.
 7. Every handoff records the resolved rule-set hash and gate evidence.
-8. High-level workflow state is stored atomically in `.harness/tasks.yaml`.
+8. High-level workflow state is stored atomically in `.sailor/tasks.yaml`.
    Transcripts and disposable process state belong under ignored
-   `.harness/state/` directories.
+   `.sailor/state/` directories.
 9. Preserve the six required agent roles: `specifier`, `coder`, `cleaner`,
    `architect`, `hardender`, and `qa` (`QA` as its display name).
 10. macOS, Linux, and WSL are the v1 shell targets. Native Windows is not.
@@ -82,13 +82,13 @@ Already verified on the current commit:
 
 ```text
 host-project/
-└── .harness/
+└── .sailor/
     ├── .gitignore
     ├── package.json
     ├── package-lock.json
     ├── node_modules/                 # ignored, runtime dependencies only
     ├── bin/
-    │   └── harness
+    │   └── sailor
     ├── agents/
     │   ├── specifier.yaml
     │   ├── coder.yaml
@@ -117,7 +117,7 @@ host-project/
 ```
 
 The initial installer may maintain a private npm environment inside
-`.harness/`. Do not add harness dependencies to the host project's
+`.sailor/`. Do not add sailor dependencies to the host project's
 `package.json`.
 
 ## Rule contract v1
@@ -157,7 +157,7 @@ Implement check runners as a discriminated union:
   package manager and `package.json` scripts.
 - `command`: an explicit non-shell argv array, working-directory policy, and
   timeout.
-- Reserve `builtin` in the schema only when the first real built-in harness
+- Reserve `builtin` in the schema only when the first real built-in sailor
   check exists. Do not add a fake unimplemented runner.
 
 Required enums:
@@ -210,7 +210,7 @@ Discovery is read-only and must not execute project scripts. Produce a validated
 - detected TypeScript and ESLint configuration filenames;
 - existing `core.hooksPath` value;
 - existing `.git/hooks`, Husky, Lefthook, or similar hook entrypoints;
-- validation mode, initially `native-plus-harness`.
+- validation mode, initially `native-plus-sailor`.
 
 Do not infer that an arbitrary package script is safe to run. Only resolve
 script names referenced by validated rules.
@@ -328,7 +328,7 @@ npm run test:coverage
 Maintain the configured global coverage thresholds. Update `README.md` only for
 behavior that actually exists. Do not create installer documentation yet.
 
-## Milestone B: `.harness` installer and external hooks
+## Milestone B: `.sailor` installer and external hooks
 
 Begin only after Milestone A is reviewed.
 
@@ -341,12 +341,12 @@ Begin only after Milestone A is reviewed.
 - Unknown commands and invalid config return stable nonzero exit codes.
 - Test CLI behavior by spawning the built entrypoint or injecting streams.
 
-### B2. Add `.harness` templates
+### B2. Add `.sailor` templates
 
-- Add `templates/.harness/` matching the target layout.
+- Add `templates/.sailor/` matching the target layout.
 - Provide `base.yaml`, `typescript.yaml`, and `git.yaml` with real instructions
   and checks only.
-- Add a `.harness/.gitignore` that ignores `node_modules/`, `state/`, logs, and
+- Add a `.sailor/.gitignore` that ignores `node_modules/`, `state/`, logs, and
   temporary lock files but does not ignore `tasks.yaml`, agent definitions, or
   rules.
 - Validate every shipped template in Jest.
@@ -357,9 +357,9 @@ Begin only after Milestone A is reviewed.
 - Refuse to install outside a Git repository.
 - Refuse unsafe overwrites; support `--update` only through an explicit managed
   manifest in `version.json`.
-- Install runtime dependencies into `.harness/`, never into the host package.
+- Install runtime dependencies into `.sailor/`, never into the host package.
 - Use temporary directories and atomic rename for managed-file updates.
-- Add `harness doctor` checks for Node, npm, Git, Bash, config validity, runtime
+- Add `sailor doctor` checks for Node, npm, Git, Bash, config validity, runtime
   dependencies, and hook reachability.
 - Test against temporary Git repositories.
 
@@ -371,18 +371,18 @@ Before changing hooks, record:
 - resolved default `.git/hooks/pre-commit` and `pre-push` paths;
 - detected Husky or other hook runners.
 
-If existing hooks are present, generate a `.harness/hooks/` dispatcher that
-runs the preserved hook and then the harness gate. Abort installation if safe
+If existing hooks are present, generate a `.sailor/hooks/` dispatcher that
+runs the preserved hook and then the sailor gate. Abort installation if safe
 chaining cannot be proven; do not silently discard an existing hook.
 
-The harness pre-commit endpoint runs `gate pre-commit`. The pre-push endpoint
+The sailor pre-commit endpoint runs `gate pre-commit`. The pre-push endpoint
 runs `gate pre-push`. Add tests for no prior hook, prior relative hook path,
-prior absolute hook path, failing prior hook, failing harness gate, and Git
+prior absolute hook path, failing prior hook, failing sailor gate, and Git
 worktrees.
 
 ## Milestone C: tasks, contexts, and handoffs
 
-Use `yaml` for `.harness/tasks.yaml`. Add robust atomic writing and locking;
+Use `yaml` for `.sailor/tasks.yaml`. Add robust atomic writing and locking;
 prefer reviewed libraries such as `proper-lockfile` and `write-file-atomic`
 instead of inventing an incomplete lock protocol.
 
@@ -407,7 +407,7 @@ Each transition stores:
 - next-agent context path.
 
 Reject stale-revision writes. Contexts live at
-`.harness/state/runs/<run-id>/agents/<agent-id>/` and must never be shared by
+`.sailor/state/runs/<run-id>/agents/<agent-id>/` and must never be shared by
 reference as one mutable global context.
 
 ## Milestone D: agents and provider adapters
@@ -441,15 +441,15 @@ Agent tool policy defaults:
 
 Agents reference logical profiles such as `reasoning-high`, `coding-high`, and
 `verification`. Provider-specific model IDs live only in
-`.harness/config/models.yaml` and are validated by the relevant adapter.
+`.sailor/config/models.yaml` and are validated by the relevant adapter.
 
 ## End-to-end acceptance criteria
 
 The first usable release is not complete until all of the following pass:
 
-1. A temporary TypeScript Git project can install the harness without changing
+1. A temporary TypeScript Git project can install the sailor without changing
    its root `package.json` or native ESLint config.
-2. The installed footprint is confined to `.harness/` plus local Git config.
+2. The installed footprint is confined to `.sailor/` plus local Git config.
 3. Existing project hooks still execute in their original order.
 4. A custom YAML rule changes both the compiled agent policy and phase gates
    without a TypeScript code change.
@@ -472,7 +472,7 @@ The first usable release is not complete until all of the following pass:
   Milestone B creates that behavior.
 - Local Git hooks can be bypassed with `--no-verify`; CI is required for
   enforcement against a human intentionally bypassing local controls.
-- Running both native and harness style rules can conflict. Harness baseline
+- Running both native and sailor style rules can conflict. Sailor baseline
   rules should focus on correctness and maintainability; style overlays are
   opt-in.
 - `package.json` declares MIT but no `LICENSE` file exists yet. Add it before a
@@ -496,10 +496,10 @@ The first usable release is not complete until all of the following pass:
 
 Use this exact prompt after attaching or referencing this handoff:
 
-> Continue Agentic Harness from branch `codex/basic-structure` in its existing
+> Continue Sailor from branch `codex/basic-structure` in its existing
 > worktree. Read `AGENTS.md`, `README.md`, and this handoff completely. Implement
 > Milestone A only, using TDD and the listed commit boundaries. Do not build the
-> `.harness` installer or provider adapters yet. Preserve the three-layer rule
+> `.sailor` installer or provider adapters yet. Preserve the three-layer rule
 > architecture: agent policy compilation, workflow gates, and later Git hook
 > enforcement. Run every Milestone A completion gate and report any deviation
 > directly.

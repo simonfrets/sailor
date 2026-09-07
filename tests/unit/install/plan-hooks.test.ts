@@ -1,6 +1,6 @@
 import { loadHooksConfig } from "../../../src/config/hooks-config.js";
 import type { HooksConfig } from "../../../src/config/hooks-config.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import type {
   HookEnvironment,
   PriorHook,
@@ -31,26 +31,26 @@ const config = (
 
 const environment = (
   priorHooks: readonly PriorHook[] = [],
-  dispatchedByHarness = false
+  dispatchedBySailor = false
 ): HookEnvironment => ({
-  hooksPath: dispatchedByHarness ? ".harness/hooks" : null,
-  hooksPathScope: dispatchedByHarness ? "local" : null,
+  hooksPath: dispatchedBySailor ? ".sailor/hooks" : null,
+  hooksPathScope: dispatchedBySailor ? "local" : null,
   hooksDirectory: "/tmp/host/.git/hooks",
-  dispatchedByHarness,
+  dispatchedBySailor,
   priorHooks,
 });
 
 const plan = (input: {
   readonly hooks?: HooksConfig;
   readonly priorHooks?: readonly PriorHook[];
-  readonly dispatchedByHarness?: boolean;
+  readonly dispatchedBySailor?: boolean;
   readonly recorded?: readonly HookRecord[];
 }): readonly HookDispatcher[] =>
   planHooks({
     hooks: input.hooks ?? config(),
     environment: environment(
       input.priorHooks ?? [],
-      input.dispatchedByHarness ?? false
+      input.dispatchedBySailor ?? false
     ),
     recorded: input.recorded ?? [],
   });
@@ -91,7 +91,7 @@ describe("planHooks", () => {
   });
 
   it("passes through a hook it has no gate for", () => {
-    // Pointing core.hooksPath at the harness stops `commit-msg` running too,
+    // Pointing core.hooksPath at the sailor stops `commit-msg` running too,
     // and a hook that disappears because a tool was installed was discarded.
     expect(
       plan({
@@ -127,7 +127,7 @@ describe("planHooks", () => {
           hooks: config("abort"),
           priorHooks: [{ hook: "pre-commit", path: ".husky/pre-commit" }],
         }),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("unsafe-hook-chain");
@@ -145,7 +145,7 @@ describe("planHooks", () => {
     // the directory would conclude the project never had a hook.
     expect(
       plan({
-        dispatchedByHarness: true,
+        dispatchedBySailor: true,
         recorded: [
           { hook: "pre-commit", chained: ".husky/pre-commit" },
           { hook: "commit-msg", chained: ".git/hooks/commit-msg" },
@@ -171,7 +171,7 @@ describe("planHooks", () => {
     expect(
       plan({
         hooks: config("abort"),
-        dispatchedByHarness: true,
+        dispatchedBySailor: true,
         recorded: [{ hook: "pre-commit", chained: ".husky/pre-commit" }],
       })
     ).toHaveLength(2);
@@ -181,7 +181,7 @@ describe("planHooks", () => {
     expect(
       plan({
         hooks: config("chain", ["pre-commit"]),
-        dispatchedByHarness: true,
+        dispatchedBySailor: true,
         recorded: [
           { hook: "pre-commit", chained: null },
           { hook: "pre-push", chained: null },

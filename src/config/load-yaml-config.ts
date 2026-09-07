@@ -1,7 +1,7 @@
 import { LineCounter, parseDocument } from "yaml";
 import type { z } from "zod";
 
-import { HarnessError } from "../harness/harness-error.js";
+import { SailorError } from "../sailor/sailor-error.js";
 
 export interface LoadYamlConfigOptions {
   /** Filename reported in diagnostics. Never an absolute machine path. */
@@ -43,10 +43,10 @@ const formatPath = (path: readonly PropertyKey[]): string =>
  * Parses and validates one YAML configuration file.
  *
  * Rule bundles deliberately do not come through here: `loadRuleBundle` raises a
- * `RuleValidationError` carrying structured issues, because `harness rules
+ * `RuleValidationError` carrying structured issues, because `sailor rules
  * explain` renders them individually. A malformed config is instead a plain
- * `HarnessError` with `invalid-config`, which is what the CLI turns into an
- * exit code and what `harness doctor` reports.
+ * `SailorError` with `invalid-config`, which is what the CLI turns into an
+ * exit code and what `sailor doctor` reports.
  *
  * Every issue in the file is collected in one pass, so a config with four
  * mistakes is fixed in one edit rather than four runs.
@@ -77,7 +77,7 @@ export const loadYamlConfig = <Schema extends z.ZodType>(
   };
 
   if (document.errors.length > 0) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
       `${options.source} is not valid YAML`,
       document.errors.map((error) => {
@@ -94,9 +94,9 @@ export const loadYamlConfig = <Schema extends z.ZodType>(
   const parsed = schema.safeParse(plain);
 
   if (!parsed.success) {
-    throw new HarnessError(
+    throw new SailorError(
       "invalid-config",
-      `${options.source} is not a valid harness config file`,
+      `${options.source} is not a valid sailor config file`,
       parsed.error.issues.map(
         (issue) =>
           `${at(issue.path)}: ${issue.message}${

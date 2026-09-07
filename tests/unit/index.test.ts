@@ -1,5 +1,5 @@
-import * as harness from "../../src/index.js";
-import { HARNESS_DIRECTORY, harnessPackageMetadata } from "../../src/index.js";
+import * as sailor from "../../src/index.js";
+import { SAILOR_DIRECTORY, sailorPackageMetadata } from "../../src/index.js";
 
 /**
  * The published surface of the package. Listing it explicitly turns an
@@ -24,15 +24,9 @@ const PUBLIC_API = [
   "ENVIRONMENT_ALLOWLIST",
   "EXECUTABLE_MODE",
   "EXISTING_HOOK_POLICIES",
-  "HARNESS_DIRECTORY",
-  "HARNESS_ERROR_KINDS",
-  "HARNESS_GIT_HOOKS_PATH",
-  "HARNESS_PACKAGE_NAME",
-  "HARNESS_PATHS",
   "HOOKS_PATH_SCOPES",
   "HOOK_NAMES",
   "HOOK_RUNNERS",
-  "HarnessError",
   "INSTALL_ACTIONS",
   "INSTALL_MANIFEST_VERSION",
   "INTERRUPTED_STATES",
@@ -57,9 +51,15 @@ const PUBLIC_API = [
   "RUNTIME_PACKAGE_NAME",
   "RuleResolutionError",
   "RuleValidationError",
+  "SAILOR_DIRECTORY",
+  "SAILOR_ERROR_KINDS",
+  "SAILOR_GIT_HOOKS_PATH",
+  "SAILOR_PACKAGE_NAME",
+  "SAILOR_PATHS",
   "SEEDED_TEMPLATE_PATHS",
   "SEVERITIES",
   "STATE_AGENTS",
+  "SailorError",
   "TASK_FILE_SOURCE",
   "TASK_FILE_VERSION",
   "TASK_LOCK_DEFAULTS",
@@ -78,10 +78,10 @@ const PUBLIC_API = [
   "approveSpecification",
   "buildAgentContext",
   "buildChildEnvironment",
-  "buildHarnessLauncher",
   "buildHookDispatcher",
   "buildPackageManagerCommand",
   "buildRuntimePackageManifest",
+  "buildSailorLauncher",
   "canonicalRule",
   "canonicalRuleSet",
   "canonicalStringify",
@@ -102,13 +102,13 @@ const PUBLIC_API = [
   "describeCommandResult",
   "describeFailure",
   "detectLockfilePackageManagers",
-  "diagnoseHarness",
+  "diagnoseSailor",
   "discoverHookEnvironment",
   "discoverProjectProfile",
   "emptyTaskFile",
   "escapeForDoubleQuotes",
   "existingHookPolicySchema",
-  "exitCodeForHarnessError",
+  "exitCodeForSailorError",
   "findTask",
   "formatDiagnosis",
   "formatInstallResult",
@@ -117,31 +117,27 @@ const PUBLIC_API = [
   "formatRuleIssues",
   "formatRuleSetExplanation",
   "formatRuleSetSummary",
-  "harnessPackageMetadata",
-  "harnessPath",
-  "harnessReleaseTarballUrl",
-  "harnessTemplateRoot",
   "hashManagedFile",
   "hashRuleSet",
   "hookRecordSchema",
   "hookScriptPath",
   "hooksConfigSchema",
-  "installHarness",
   "installManifestSchema",
   "installRuntimeDependencies",
+  "installSailor",
   "isActiveState",
   "isBuiltInAgentId",
   "isInterruptedState",
   "isSeededTemplate",
   "isWorkflowState",
   "killProcessTree",
-  "listHarnessTemplateFiles",
+  "listSailorTemplateFiles",
   "loadAgentDefinition",
-  "loadHarnessRuleSet",
   "loadHooksConfig",
   "loadProjectConfig",
   "loadRuleBundle",
   "loadRuleDirectory",
+  "loadSailorRuleSet",
   "loadYamlConfig",
   "managedFileEntrySchema",
   "managedFileKindSchema",
@@ -163,10 +159,10 @@ const PUBLIC_API = [
   "projectRelativeGlobSchema",
   "projectRelativePathSchema",
   "readAgentContext",
-  "readHarnessTemplateFile",
   "readInstallManifest",
   "readPackageRepository",
   "readPackageVersion",
+  "readSailorTemplateFile",
   "readTaskFile",
   "readTextFileIfPresent",
   "requireTask",
@@ -179,6 +175,10 @@ const PUBLIC_API = [
   "runCli",
   "runIdSchema",
   "runPhaseGates",
+  "sailorPackageMetadata",
+  "sailorPath",
+  "sailorReleaseTarballUrl",
+  "sailorTemplateRoot",
   "taskFailureSchema",
   "taskFilePath",
   "taskFileSchema",
@@ -203,22 +203,22 @@ const PUBLIC_API = [
 ] as const;
 
 describe("package metadata", () => {
-  it("reserves .harness as the project-local installation directory", () => {
-    expect(HARNESS_DIRECTORY).toBe(".harness");
-    expect(harnessPackageMetadata).toEqual({
-      directory: ".harness",
-      name: "agentic-harness",
+  it("reserves .sailor as the project-local installation directory", () => {
+    expect(SAILOR_DIRECTORY).toBe(".sailor");
+    expect(sailorPackageMetadata).toEqual({
+      directory: ".sailor",
+      name: "sailor",
     });
   });
 });
 
 describe("public API surface", () => {
   it("exports exactly the documented bindings", () => {
-    expect(Object.keys(harness).sort()).toEqual([...PUBLIC_API]);
+    expect(Object.keys(sailor).sort()).toEqual([...PUBLIC_API]);
   });
 
   it("resolves every exported binding to a defined value", () => {
-    const surface: Record<string, unknown> = harness;
+    const surface: Record<string, unknown> = sailor;
 
     expect(PUBLIC_API.length).toBeGreaterThan(0);
 

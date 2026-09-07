@@ -18,7 +18,7 @@ const PROFILE: ProjectProfile = {
   existingHookEntrypoints: [
     { runner: "husky", hook: "pre-commit", path: ".husky/pre-commit" },
   ],
-  validationMode: "native-plus-harness",
+  validationMode: "native-plus-sailor",
 };
 
 describe("package manager and validation mode enums", () => {
@@ -32,9 +32,9 @@ describe("package manager and validation mode enums", () => {
     // default itself is pinned in tests/unit/config/project-config.test.ts,
     // which is where it is actually decided.
     expect([...VALIDATION_MODES]).toEqual([
-      "harness-only",
+      "sailor-only",
       "native-only",
-      "native-plus-harness",
+      "native-plus-sailor",
     ]);
   });
 });

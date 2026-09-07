@@ -7,7 +7,7 @@ const ruleSetOf = (rules: string): ResolvedRuleSet =>
   resolveRuleSet([
     {
       origin: "project",
-      location: "/Users/somebody/secret-project/.harness/rules/base.yaml",
+      location: "/Users/somebody/secret-project/.sailor/rules/base.yaml",
       bundle: loadRuleBundle(
         `version: 1\nid: base\ndescription: Baseline\nrules:\n${rules}`,
         { source: "base.yaml" }

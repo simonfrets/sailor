@@ -2,7 +2,7 @@ import {
   MODEL_PROFILES,
   loadAgentDefinition,
 } from "../../../src/agents/agent-definition.js";
-import { HarnessError } from "../../../src/harness/harness-error.js";
+import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { captureError } from "../../helpers/expect-error.js";
 
 const source = "agents/example.yaml";
@@ -52,7 +52,7 @@ describe("loadAgentDefinition", () => {
   it("rejects a provider model id in place of a logical profile", () => {
     const error = captureError(
       () => load(EDITING.replace("coding-high", "claude-opus-5")),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -67,7 +67,7 @@ describe("loadAgentDefinition", () => {
             "tools:\n  read: true\n  search: true\n  edit: true\n  execute: false\n"
           )
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("at least one write scope");
@@ -83,7 +83,7 @@ describe("loadAgentDefinition", () => {
     for (const scope of ["/etc/**", "../**", "{..,src}/**"]) {
       const error = captureError(
         () => load(EDITING.replace("'src/**'", `'${scope}'`)),
-        HarnessError
+        SailorError
       );
 
       expect(error.kind).toBe("invalid-config");
@@ -99,7 +99,7 @@ describe("loadAgentDefinition", () => {
             "tools:\n  read: true\n  search: true\n  edit: false\n  execute: false\nwriteScopes:\n  - 'src/**'\n"
           )
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain(
@@ -115,7 +115,7 @@ describe("loadAgentDefinition", () => {
             "tools:\n  read: true\n  search: true\n  edit: false\n  execute: false\nprojectScripts:\n  - test\n"
           )
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain(
@@ -134,7 +134,7 @@ describe("loadAgentDefinition", () => {
             "tools:\n  read: true\n  search: true\n  edit: false\n  execute: true\n"
           )
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain(
@@ -145,7 +145,7 @@ describe("loadAgentDefinition", () => {
   it("rejects an arbitrary command dressed up as a project script", () => {
     const error = captureError(
       () => load(EDITING.replace("  - test", "  - 'rm -rf /'")),
-      HarnessError
+      SailorError
     );
 
     expect(error.kind).toBe("invalid-config");
@@ -157,7 +157,7 @@ describe("loadAgentDefinition", () => {
         load(
           EDITING.replace("  execute: true", "  execute: true\n  push: true")
         ),
-      HarnessError
+      SailorError
     );
 
     expect(error.details.join("\n")).toContain("push");

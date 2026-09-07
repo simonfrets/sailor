@@ -97,7 +97,7 @@ describe("createNodeCommandRunner", () => {
 
   it("reports a missing executable as a spawn failure", async () => {
     const result = await run({
-      command: { executable: "agentic-harness-no-such-binary", args: [] },
+      command: { executable: "sailor-no-such-binary", args: [] },
     });
 
     expect(result).toMatchObject({
@@ -107,7 +107,7 @@ describe("createNodeCommandRunner", () => {
   });
 
   it("runs the command in the requested working directory", async () => {
-    const directory = createTempDirectory("agentic-harness-cwd-");
+    const directory = createTempDirectory("sailor-cwd-");
 
     const result = await run({
       command: nodeScript("process.stdout.write(process.cwd())"),
@@ -189,7 +189,7 @@ describe("createNodeCommandRunner", () => {
   });
 
   it("treats shell metacharacters as literal argument values", async () => {
-    const directory = createTempDirectory("agentic-harness-inert-");
+    const directory = createTempDirectory("sailor-inert-");
     const hostile = [
       "; rm -rf .",
       "$(touch pwned)",
@@ -218,9 +218,9 @@ describe("createNodeCommandRunner", () => {
   it("passes explicit environment overrides through to the child", async () => {
     const result = await run({
       command: nodeScript(
-        "process.stdout.write(JSON.stringify([process.env.HARNESS_MARKER, Boolean(process.env.PATH)]))"
+        "process.stdout.write(JSON.stringify([process.env.SAILOR_MARKER, Boolean(process.env.PATH)]))"
       ),
-      env: { HARNESS_MARKER: "set" },
+      env: { SAILOR_MARKER: "set" },
     });
 
     expect(JSON.parse(result.output.stdout)).toEqual(["set", true]);
@@ -232,12 +232,12 @@ describe("createNodeCommandRunner", () => {
     // proves nothing. It used to be set nowhere at all.
     const leaky = createNodeCommandRunner({
       ...NODE_COMMAND_RUNNER_DEFAULTS,
-      baseEnv: { ...process.env, AGENTIC_HARNESS_SECRET: "leak" },
+      baseEnv: { ...process.env, SAILOR_SECRET: "leak" },
     });
 
     const result = await leaky({
       command: nodeScript(
-        "process.stdout.write(String(process.env.AGENTIC_HARNESS_SECRET))"
+        "process.stdout.write(String(process.env.SAILOR_SECRET))"
       ),
       cwd: process.cwd(),
       env: null,
@@ -251,7 +251,7 @@ describe("createNodeCommandRunner", () => {
     // `npm run test` is a shell wrapping the real runner. Signalling only the
     // direct child reaped the wrapper and left the runner alive, still holding
     // the repository the gate had already given up on.
-    const directory = createTempDirectory("agentic-harness-tree-");
+    const directory = createTempDirectory("sailor-tree-");
     const pidFile = join(directory, "grandchild.pid");
     const result = await run({
       command: nodeScript(
@@ -332,12 +332,12 @@ describe("buildChildEnvironment", () => {
   it("lets explicit overrides add and replace values", () => {
     const environment = buildChildEnvironment(
       { PATH: "/usr/bin" },
-      { PATH: "/opt/bin", HARNESS_MARKER: "set" }
+      { PATH: "/opt/bin", SAILOR_MARKER: "set" }
     );
 
     expect(environment).toEqual({
       PATH: "/opt/bin",
-      HARNESS_MARKER: "set",
+      SAILOR_MARKER: "set",
     });
   });
 
@@ -366,7 +366,7 @@ describe("killProcessTree", () => {
 
   it("falls back when the command never started", () => {
     // Without this guard the pid is absent, `-0` is not a group but *the
-    // caller's own*, and a spawn that never started would signal the harness
+    // caller's own*, and a spawn that never started would signal the sailor
     // and everything running alongside it.
     const fallback = jest.fn();
 

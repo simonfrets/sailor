@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 import { loadYamlConfig } from "../config/load-yaml-config.js";
-import { projectRelativeGlobSchema } from "../harness/project-path.js";
+import { projectRelativeGlobSchema } from "../sailor/project-path.js";
 import { projectScriptNameSchema } from "../rules/rule-schema.js";
 import { agentIdSchema } from "./agent-id.js";
 
 /**
  * Logical model profiles. Provider-specific model identifiers are deliberately
- * absent: they live in `.harness/config/models.yaml` and are validated by the
+ * absent: they live in `.sailor/config/models.yaml` and are validated by the
  * adapter that consumes them, so a definition stays portable across providers.
  */
 export const MODEL_PROFILES = [
