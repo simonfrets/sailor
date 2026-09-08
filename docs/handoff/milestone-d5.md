@@ -44,9 +44,9 @@ design; `docs/handoff/milestone-c.md` holds the standing trap list.
 
 | Step | Subject                                     | Depends on            | State   |
 | ---- | ------------------------------------------- | --------------------- | ------- |
-| D5   | `Validate provider and model configuration` | nothing               | next    |
-| R    | `Release v0.2.0 with the renamed tarball`   | a person, after D5    |         |
-| D6   | `Drive a task through its agents`           | D5                    |         |
+| D5   | `Validate provider and model configuration` | nothing               | done    |
+| R    | `Release v0.2.0 with the renamed tarball`   | a person, after D5    | ready   |
+| D6   | `Drive a task through its agents`           | D5                    | next    |
 | D4   | `Invoke an agent through the Codex CLI`     | **`codex` installed** | blocked |
 
 ### D5, the configuration
@@ -156,6 +156,23 @@ hold. New since D3:
    request bodies. Every one in this repository's history was stripped on
    purpose.
 
+New in D5:
+
+10. **A fake runner keyed by the executable alone cannot see arguments.**
+    `createFakeCommandRunner` answers per executable, so a test that only
+    reads the diagnostic's wording passes however the arguments were
+    mangled. Assert the `CommandRequest` that was made.
+11. **`z.strictObject(...).default(value)` takes the output type**, so the
+    value has to spell out every key the shape fills in. Typing a default
+    command as `readonly [string, ...string[]]` is what keeps that literal
+    free of a cast.
+12. **Installing the packed tarball runs `prepare`, which runs `husky`, which
+    fails outside a git repository.** Use `npm install --ignore-scripts` when
+    resolving an extracted copy of this package for a demonstration.
+13. **A hand-run demonstration is worth more than its transcript.** The
+    provider check's ordering defect was invisible to 61 unit tests and
+    obvious the first time a real `default: codex` was diagnosed.
+
 ## Completion gate
 
 ```sh
@@ -193,3 +210,247 @@ partial work as complete.
 > release the installer needs, but do not cut the release. Run the
 > completion gate, demonstrate the configured adapter live once by hand, and
 > report any deviation directly.
+
+## What D5 added
+
+Five commits on `codex/milestone-d5`, on top of the handoff commit:
+
+| Commit    | Subject                                                   |
+| --------- | --------------------------------------------------------- |
+| `fef5e1b` | Configure providers and models as the project's own files |
+| `9010485` | Build the Claude adapter from the installed configuration |
+| `71e5877` | Report the configured provider in `sailor doctor`         |
+| `ddd9c79` | Prepare the 0.2.0 release the installer needs             |
+| `9d4cf66` | Decide a provider with no adapter before probing its CLI  |
+
+`npm run check`, `npm run build`, `npm run test:coverage` and
+`npm pack --dry-run` pass: 999 tests across 85 suites at 98.69% statements,
+verified under the simulated hook environment. `PUBLIC_API` is 306 entries.
+`README.md`'s "Agent definitions and configuration", "The Claude adapter"
+and installer sections are the reference.
+
+| Module                                  | Public surface                                                                                                                                                                                                                         |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/config/models-config.ts`           | `modelsConfigSchema`, `providerModelsSchema`, `modelsForProvider`, `loadModelsConfig`, `readInstalledModelsConfig`                                                                                                                     |
+| `src/config/providers-config.ts`        | `DEFAULT_PROVIDER_COMMANDS`, `providerCommandSchema`, `claudeProviderConfigSchema`, `codexProviderConfigSchema`, `providersConfigSchema`, `providerForAgent`, `providerCommand`, `loadProvidersConfig`, `readInstalledProvidersConfig` |
+| `src/providers/claude/claude-config.ts` | `claudeAdapterOptions`                                                                                                                                                                                                                 |
+| `src/providers/provider-adapter.ts`     | `PROVIDER_CLI_VERSIONS`                                                                                                                                                                                                                |
+
+`SAILOR_PATHS` gained `modelsConfig` and `providersConfig`;
+`SEEDED_TEMPLATE_PATHS` gained the two files, and is now five. No error kind
+was added: everything here is `invalid-config`, which already existed.
+
+### The two files
+
+```yaml
+# config/models.yaml
+version: 1
+models:
+  claude:
+    coding-high: opus
+    reasoning-high: opus
+    verification: sonnet
+```
+
+```yaml
+# config/providers.yaml
+version: 1
+default: claude
+agents: {}
+claude:
+  command: [claude]
+  maxBudgetUsd: null
+codex:
+  command: [codex]
+```
+
+### Decisions taken where the design was silent
+
+1. **A profile the project leaves out keeps the adapter's model.**
+   `claudeAdapterOptions` merges `models.yaml` over `DEFAULT_CLAUDE_MODELS`
+   rather than replacing it, so overriding one model does not mean restating
+   and then maintaining the other two, and a copy seeded before a profile
+   existed keeps working. The shipped template writes the three defaults out
+   anyway, so they can be seen and edited, and a test pins that block against
+   `DEFAULT_CLAUDE_MODELS` - the one place the fact lives - so the two cannot
+   be changed apart.
+2. **A model id is a non-empty string and nothing more.** That is all this
+   side can honestly check: `claude --model` takes aliases and full names
+   alike and refuses neither until the request is made. The design already
+   said the consuming adapter validates ids; for Claude, that validation is
+   the request.
+3. **The provider is the project's decision, not the agent definition's.** A
+   definition names a logical profile and stays portable, so `providers.yaml`
+   carries `default` plus a per-agent override map. `providerForAgent` is the
+   whole of the lookup.
+4. **A command is a tuple, not a length-checked array.**
+   `z.tuple([z.string().min(1)], z.string().min(1))` types the executable as
+   `string`, so nothing that destructures a configured command needs a
+   fallback branch for an executable that the schema has already refused.
+5. **`codex` is admitted and carries a command and nothing else.** The
+   contract admits the provider, so the configuration must; its CLI was never
+   read here, so anything shaped for its flags would be the guess the design
+   forbids. `maxBudgetUsd` lives under `claude` alone for the same reason.
+6. **No spending cap by default.** A cap that stops a run half way through
+   leaves the tree the agent was in the middle of changing, and what a run is
+   worth is the project's judgement. The template says so in place, with the
+   measured USD 0.40 of a two-file `opus` run beside it.
+7. **A provider with no adapter is a problem, decided before anything is
+   spawned.** It is a fact about the package rather than about the machine,
+   so probing first would have made installing the CLI look like the fix. It
+   is a problem and not a warning because an installation whose agents are
+   routed to a provider it cannot drive can run none of them. The live
+   demonstration is what found this: `default: codex` first reported
+   `codex --version could not be started`, which reads as a missing program.
+8. **The provider check covers every provider the configuration could route
+   an agent to**, the default and each per-agent override. An override to a
+   provider that is not there breaks exactly the agent it names while the
+   default one reports perfectly, so a default-only check would have called
+   that installation healthy.
+9. **`models.yaml` and `providers.yaml` are validated by the `config`
+   check, not the `provider` one.** Absent is the defaults, invalid is a
+   problem, and the provider check then says it cannot run rather than
+   guessing - the same shape `hooks` already had against `hooks.yaml`.
+10. **`PROVIDER_CLI_VERSIONS` lives beside the contract**, mapping each
+    provider to the CLI version its adapter was written against and `null`
+    where no adapter exists. It is what the doctor compares against, so which
+    `--help` an adapter was read from is recorded as data rather than as
+    prose in a comment.
+
+### Two tests that could not fail, found and fixed
+
+Both were found by mutation, and both had been written to guard exactly what
+they missed.
+
+- `SEEDED_TEMPLATE_PATHS` was only ever asserted against itself, so removing
+  `config/models.yaml` from it kept the suite green. A config template added
+  and never seeded would have been installed as **managed**: reconciled on
+  the next `sailor init`, and a conflict the first time the project edited
+  the file it had been given to edit. A test now asserts that everything
+  shipped under `config/` is seeded.
+- The doctor test that says the configured command is the one that runs
+  asserted the sentence describing the command. The fake runner is keyed by
+  executable alone, so dropping the configured arguments changed nothing it
+  looked at. It now asserts the request that was spawned.
+
+Six further mutations each turned a test red: the project's models losing to
+the adapter's, the cap dropped, a command's arguments dropped, an empty word
+accepted as an executable, a cap of zero accepted, an unknown model profile
+accepted, and the shipped template drifting from `DEFAULT_CLAUDE_MODELS`.
+
+### The live demonstration
+
+By hand, against a throwaway git repository, from the packed `sailor-0.2.0`
+tarball rather than the development tree.
+
+**One deviation, and it is the one the handoff anticipated.** v0.2.0 is not
+released, so `sailorReleaseTarballUrl` in the _extracted copy_ of the tarball
+was pointed at the locally packed `sailor-0.2.0.tgz`. One function, in a
+throwaway extraction, and nothing in the repository. With that,
+`sailor init` completed for real: 21 files created, hooks dispatched,
+`Runtime dependencies resolved in .sailor/node_modules`, exit 0. Both new
+files were written:
+
+```text
+$ ls .sailor/config
+hooks.yaml  models.yaml  notifications.yaml  project.yaml  providers.yaml
+```
+
+`sailor doctor`, against the real `claude` at `~/.local/bin/claude`:
+
+```text
+OK   Configuration — .sailor/config/project.yaml, .sailor/config/hooks.yaml, .sailor/config/models.yaml, .sailor/config/providers.yaml are valid
+OK   Provider — claude 2.1.263 (Claude Code), from `claude --version`
+Result: 0 problems, 2 warnings
+```
+
+and the two refusing branches, each with the file edited and put back:
+
+```text
+# agents: { qa: codex }
+FAIL Provider — claude 2.1.263 (Claude Code), from `claude --version`
+       this sailor has no adapter for codex, so no agent can be run on it whether or not its CLI is installed
+exit 3
+
+# claude: { command: [claude-not-here] }
+FAIL Provider — `claude-not-here --version` could not be started: spawn claude-not-here ENOENT, so no agent can be run on claude
+```
+
+Then one live invocation of the coder, through the sailor **installed in the
+project** rather than the development tree, with the adapter built by
+`claudeAdapterOptions` from the installed files. `models.yaml` was edited to
+`coding-high: sonnet` and `providers.yaml` to `maxBudgetUsd: 3` first, so the
+run proves the configuration was read: the adapter's own default for that
+profile is `opus`.
+
+```text
+models.yaml: {"claude":{"coding-high":"sonnet","reasoning-high":"opus","verification":"sonnet"}}
+providers.yaml: {"command":["claude"],"maxBudgetUsd":3}
+model for coding-high: sonnet
+[started] --model sonnet
+[tool] read .sailor/state/runs/run-demo/agents/coder/context.json -> allowed
+[tool] read docs/specs/greeting.md -> allowed
+[tool] execute sh -c ls -la ... && cat .../package.json -> denied (not-a-project-script)
+[stdout] I can't run arbitrary Bash commands - only the four npm scripts are permitted. I'll use Glob/Read instead.
+[tool] search src/** -> allowed
+[tool] read package.json -> allowed
+[tool] write src/greeting.js -> allowed: within the write scope `src/**`
+[tool] write tests/greeting.test.js -> allowed: within the write scope `tests/**`
+[stdout] The write scope for this stage is limited to `src/**` and `tests/**`, so I can't edit `README.md` even though the spec asks for a README example - I'll flag that as a gap.
+[tool] execute npm run test -> allowed
+[tool] execute npm run lint -> allowed
+[tool] execute npm run typecheck -> allowed
+[tool] execute sh -c npm run test 2>&1 | head -3 -> denied (not-a-project-script)
+[tool] execute npm run build -> allowed
+[finished] completed: exited with code 0 (138883ms)
+```
+
+Audit: `src/greeting.js` and `tests/greeting.test.js` changed, no violations,
+the repository's own index untouched. The decision log and the transcript
+were on disk at
+`.sailor/state/runs/run-demo/claude/coder/attempt-1.{decisions,transcript}.jsonl`.
+
+The demo's own `test` script (`node --test tests`) is broken in this Node
+build - it resolves `tests` as a module and throws `MODULE_NOT_FOUND` - which
+is the same shape of fixture defect D3 hit. The agent diagnosed it, refused
+to touch `package.json` because it was outside its write scope, and closed by
+saying the required gate fails for an environment reason rather than claiming
+a green run. That is the demonstration working, not failing.
+
+### Open, after D5
+
+- **The release is not cut.** `package.json` and `package-lock.json` say
+  `0.2.0`; tagging `v0.2.0` and attaching the `sailor-0.2.0.tgz` that
+  `npm pack` produces is a person's act. Until it exists, `sailor init` from
+  `main` still fails at the dependency step, and any re-check has to point
+  the URL at a local tarball as above.
+- **D4** stays unwritten: `codex` is still not installed.
+- **D6**, the driver, is next and is described above. `claudeAdapterOptions`
+  is where its adapter comes from; `providerForAgent` is how it chooses one;
+  a provider with no adapter is a condition it has to refuse rather than
+  discover.
+- `validationMode` still filters nothing, and findings 2 to 7 from the
+  Milestone C review are still untouched.
+- `AgentContext` still carries no `summary` or `displayName`, so the prompt
+  says "the `coder` agent" and nothing of what a coder is for.
+- Nothing checks that a model id names a model that exists. Nothing can,
+  before the request; a run that names a model the provider rejects fails at
+  the provider, and the failure is the adapter's to report.
+
+## Starting prompt for the next session
+
+> Continue Sailor from `codex/milestone-d5` in a worktree cut from it. Read
+> `AGENTS.md`, `README.md`, `docs/handoff/milestone-d.md`,
+> `docs/handoff/milestone-d3.md` and `docs/handoff/milestone-d5.md`
+> completely before writing code. D1, D2, D3, D5 and the QA completion guard
+> are done; `codex` is still not installed, so D4 stays unwritten.
+> Implement **D6 only**: the driver that takes a task from
+> `awaiting_approval` to `qa`, one agent at a time, on top of
+> `transitionTask`, `writeAgentContext`, `buildAgentInvocation`,
+> `recordAuditedAgentRun` and `claudeAdapterOptions`. Make the run-id
+> mistakes in findings 1 and 2 of `milestone-d.md` unmakeable rather than
+> merely documented. Test-first, with fake executables and never a live call
+> from a test. Run the completion gate, demonstrate one task driven through
+> at least two agents live by hand, and report any deviation directly. The
+> `v0.2.0` release is prepared but not cut; until it is, point the private
+> `package.json` at a locally packed tarball for any installer re-check.
