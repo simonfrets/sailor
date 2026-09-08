@@ -64,9 +64,9 @@ export const CLAUDE_TOOL_GATE_MATCHER = "*";
 
 /**
  * The model each logical profile runs on, as the aliases `claude --help`
- * documents (`fable`, `opus`, `sonnet`). A project overrides this through the
- * adapter's options; `config/models.yaml` is where the design eventually
- * puts it, and is not written yet.
+ * documents (`fable`, `opus`, `sonnet`). A project overrides any of them in
+ * `.sailor/config/models.yaml`, which `claudeAdapterOptions` merges over
+ * these, so a profile the project did not name keeps the model here.
  */
 export const DEFAULT_CLAUDE_MODELS: Readonly<Record<ModelProfile, string>> = {
   "coding-high": "opus",

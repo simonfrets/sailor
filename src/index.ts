@@ -336,6 +336,8 @@ export type {
   ClaudePrompt,
   ClaudeRunFiles,
 } from "./providers/claude/claude-cli-adapter.js";
+export { claudeAdapterOptions } from "./providers/claude/claude-config.js";
+export type { ClaudeAdapterOptionsInput } from "./providers/claude/claude-config.js";
 export {
   createLineSplitter,
   readClaudeStreamLine,

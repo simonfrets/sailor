@@ -2,17 +2,24 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { AgentDefinition } from "../../../../src/agents/agent-definition.js";
+import { readInstalledModelsConfig } from "../../../../src/config/models-config.js";
+import { readInstalledProvidersConfig } from "../../../../src/config/providers-config.js";
 import { SailorError } from "../../../../src/sailor/sailor-error.js";
 import {
   NODE_COMMAND_RUNNER_DEFAULTS,
   createNodeCommandRunner,
 } from "../../../../src/processes/node-command-runner.js";
-import type { CommandSpec } from "../../../../src/processes/command-runner.js";
+import type {
+  CommandRequest,
+  CommandRunner,
+  CommandSpec,
+} from "../../../../src/processes/command-runner.js";
 import { recordAuditedAgentRun } from "../../../../src/providers/audited-run.js";
 import {
   claudeRunFiles,
   createClaudeCliAdapter,
 } from "../../../../src/providers/claude/claude-cli-adapter.js";
+import { claudeAdapterOptions } from "../../../../src/providers/claude/claude-config.js";
 import {
   CLAUDE_TOOL_GATE_SOURCE,
   readClaudeGateLog,
@@ -306,6 +313,60 @@ describe("invoking an agent through a Claude CLI that runs the real hook", () =>
     // The file is there. The refusal is the point: nothing recorded this run
     // as acceptable, and the tree is left for the runtime to deal with.
     expect(existsSync(join(root, "docs/sneaky.md"))).toBe(true);
+  });
+
+  it("starts the CLI the installed configuration names, on the model it names", async () => {
+    // The whole path the driver will take: two seeded files on disk, read
+    // back, turned into adapter options, and a process started from them.
+    const root = buildRepository();
+    const scenario = scenarioFile(root, {
+      steps: [{ text: "Configured." }],
+    });
+    const fake = nodeSource("tests/fixtures/fake-claude.ts");
+
+    write(
+      root,
+      ".sailor/config/providers.yaml",
+      [
+        "version: 1",
+        "default: claude",
+        "claude:",
+        `  command: ${JSON.stringify([fake.executable, ...fake.args, scenario])}`,
+        "  maxBudgetUsd: 2.5",
+        "",
+      ].join("\n")
+    );
+    write(
+      root,
+      ".sailor/config/models.yaml",
+      "version: 1\nmodels:\n  claude:\n    coding-high: opus-4-6\n"
+    );
+
+    const requests: CommandRequest[] = [];
+    const recording: CommandRunner = async (request) => {
+      requests.push(request);
+
+      return runner(request);
+    };
+    const adapter = createClaudeCliAdapter(
+      claudeAdapterOptions({
+        models: readInstalledModelsConfig(root),
+        providers: readInstalledProvidersConfig(root),
+        runner: recording,
+        toolGate: nodeSource(CLAUDE_TOOL_GATE_SOURCE),
+      })
+    );
+    const record = await recordAuditedAgentRun(adapter, invocationFor(root), {
+      runner,
+    });
+    const [started] = requests;
+    const args = started?.command.args ?? [];
+
+    expect(record.finished).toMatchObject({ status: "completed" });
+    expect(started?.command.executable).toBe(fake.executable);
+    // The coder's profile is `coding-high`, which this project renamed.
+    expect(args[args.indexOf("--model") + 1]).toBe("opus-4-6");
+    expect(args[args.indexOf("--max-budget-usd") + 1]).toBe("2.5");
   });
 
   it("reports a CLI that exits non-zero as a failed run, with what it said", async () => {

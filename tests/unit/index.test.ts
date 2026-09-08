@@ -124,6 +124,7 @@ const PUBLIC_API = [
   "canonicalRuleSet",
   "canonicalStringify",
   "checkSchema",
+  "claudeAdapterOptions",
   "claudeGateConfigSchema",
   "claudeGateRecordSchema",
   "claudeHookInputSchema",

@@ -750,6 +750,14 @@ for a governed, non-interactive session, and nothing it does not:
   the adapter was given. `--max-budget-usd` when a cap is configured.
 - `--settings`: a `PreToolUse` hook on every tool. The hook is the gate.
 
+`claudeAdapterOptions` is what turns `config/models.yaml` and
+`config/providers.yaml` into those options: the command that starts the CLI,
+the model each profile runs on - the project's where it named one and the
+adapter's where it did not - and the spending cap, passed as no cap at all
+rather than as a `null` that would reach `--max-budget-usd` as a string. It
+is the one place the two files become adapter options, so whatever drives a
+task cannot arrive at a second reading of them.
+
 The gate is `tool-gate-main.js`, shipped in `dist/` and run by the CLI
 through `sh -c` before each tool call with the call as JSON on stdin. It
 reads its configuration - project root, the invocation's `ToolPolicy`, and
@@ -859,7 +867,6 @@ sailor does on its own.
 ## Planned modules
 
 - The Codex adapter behind the contract, written against its installed CLI
-- Provider and model configuration in `.sailor/config/`
 - A runtime that drives a task through its agents, recording each audited
   run on the task
 - Specifier, coder, cleaner, architect, hardener, and QA agents
