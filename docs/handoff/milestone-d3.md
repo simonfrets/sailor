@@ -318,13 +318,5 @@ as a permission denial.
 
 ## Starting prompt for the next session
 
-> Continue Sailor in a worktree of `<PROJECTS>/sailor`, cut from
-> `codex/milestone-d3` or from `main` once its pull request has merged. Read
-> `AGENTS.md`, `README.md`, `docs/handoff/milestone-d.md` and
-> `docs/handoff/milestone-d3.md` completely before writing code. Implement
-> **D5 only**: `.sailor/config/models.yaml` and `providers.yaml`, validated
-> and seeded like the other config files, read into the Claude adapter's
-> `models` and `claude` options, and reported by `sailor doctor`, including
-> whether `claude` is on `PATH`. `codex` is not installed, so D4 stays
-> unwritten. Test-first, with fake executables and never a live call from a
-> test. Run the completion gate and report any deviation directly.
+Superseded. PR #5 merged this branch into `main` on 2026-09-08;
+`docs/handoff/milestone-d5.md` is where the next session starts.
