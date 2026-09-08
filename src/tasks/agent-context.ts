@@ -9,7 +9,11 @@ import { z } from "zod";
 import { writeFileAtomic } from "../sailor/atomic-write.js";
 import { deepFreeze } from "../sailor/deep-freeze.js";
 import { SailorError } from "../sailor/sailor-error.js";
-import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
+import {
+  AGENT_CONTEXT_FILE,
+  agentContextDirectory,
+  agentContextFile,
+} from "./context-path.js";
 import {
   projectRelativeGlobSchema,
   projectRelativePathSchema,
@@ -37,8 +41,7 @@ import type { Task } from "./task-schema.js";
  */
 export const AGENT_CONTEXT_VERSION = 2;
 
-/** The one file a context directory is required to hold. */
-export const AGENT_CONTEXT_FILE = "context.json";
+export { AGENT_CONTEXT_FILE, agentContextDirectory, agentContextFile };
 
 const CONTEXT_MODE = 0o644;
 
@@ -89,32 +92,6 @@ export const agentContextSchema = z.strictObject({
 
 export type ContextHandoff = z.output<typeof contextHandoffSchema>;
 export type AgentContext = z.output<typeof agentContextSchema>;
-
-/**
- * Where one agent's context lives, relative to the project root.
- *
- * The run and the agent are both in the path, which is what makes a context
- * per agent per run rather than one the pipeline passes along and edits. Both
- * segments are validated identifiers, so neither can climb out of `state/` -
- * and a path arriving from anywhere else is checked before it is resolved.
- *
- * Being a function of the run id and the agent id - both of which `tasks.yaml`
- * carries, and `tasks.yaml` is committed - the path means the same thing on
- * every machine that checks the project out. The file at the end of it does
- * not: contexts live under the ignored `state/` tree, so a fresh checkout has
- * the name and not the file, and rebuilds what it needs there.
- */
-export const agentContextDirectory = (runId: string, agentId: string): string =>
-  posix.join(
-    SAILOR_DIRECTORY,
-    ...SAILOR_PATHS.runs.split(/[\\/]/),
-    runId,
-    "agents",
-    agentId
-  );
-
-export const agentContextFile = (runId: string, agentId: string): string =>
-  posix.join(agentContextDirectory(runId, agentId), AGENT_CONTEXT_FILE);
 
 /**
  * Resolves a recorded context path against a project, refusing to leave it.

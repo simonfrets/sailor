@@ -5,6 +5,7 @@ import type { BuiltInAgentId } from "../agents/agent-id.js";
 import { notificationChannelSchema } from "../config/notifications-config.js";
 import { projectRelativePathSchema } from "../sailor/project-path.js";
 import { phaseSchema } from "../rules/rule-schema.js";
+import { agentContextDirectory } from "./context-path.js";
 
 /**
  * The pipeline states, in the order the workflow runs them.
@@ -320,6 +321,14 @@ const taskShape = z.strictObject({
  * against the mapping. It records what the workflow believed at the time, and
  * a mapping that ever changed would otherwise make every file written before
  * the change unreadable rather than merely out of date.
+ *
+ * `contextPath` is held to the path this task's own run and agent name, which
+ * is the pair nothing validated before. A context path is a function of the
+ * run and the agent, so a driver that wrote the next agent's context before
+ * knowing the run a retry would start under wrote it over the failed
+ * attempt's and then recorded the two disagreeing here. The transition
+ * validates the task it produces, so the disagreement is refused where it is
+ * introduced rather than found later by whatever tried to invoke the agent.
  */
 export const taskSchema = taskShape.superRefine((task, ctx) => {
   if ((task.approvedAt === null) !== (task.approvedBy === null)) {
@@ -346,6 +355,24 @@ export const taskSchema = taskShape.superRefine((task, ctx) => {
       path: ["agentId"],
       message: `\`${task.state}\` is owned by ${describeStateOwner(task.state)}, not \`${task.agentId ?? "null"}\``,
     });
+  }
+
+  if (task.contextPath !== null) {
+    const named =
+      task.agentId === null
+        ? null
+        : agentContextDirectory(task.runId, task.agentId);
+
+    if (task.contextPath !== named) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["contextPath"],
+        message:
+          named === null
+            ? `\`${task.state}\` runs no agent, so there is no context for this task to be holding`
+            : `the context of this task's run and agent is \`${named}\`, not \`${task.contextPath}\``,
+      });
+    }
   }
 });
 

@@ -272,6 +272,7 @@ const PUBLIC_API = [
   "ruleBundleSchema",
   "ruleSchema",
   "runCli",
+  "runIdForTransition",
   "runIdSchema",
   "runPhaseGates",
   "runQaProcedure",

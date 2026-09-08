@@ -3,8 +3,10 @@ import {
   approveSpecification,
   createDefaultRunId,
   createTask,
+  runIdForTransition,
   transitionTask,
 } from "../../../src/tasks/transition-task.js";
+import { agentContextDirectory } from "../../../src/tasks/context-path.js";
 import type { TransitionRequest } from "../../../src/tasks/transition-task.js";
 import type { Task, TaskFile } from "../../../src/tasks/task-schema.js";
 import { requireTask } from "../../../src/tasks/task-file.js";
@@ -623,6 +625,113 @@ describe("transitionTask", () => {
     });
 
     expect(only(file).runId).toBe("run-1");
+  });
+
+  it("starts a new run when a blocked task is sent back for rework", () => {
+    // Recovery may target any stage at or before the interrupted one, so a
+    // blocked task sent back does discard - and reusing the run would write
+    // the coder's second context over the record of its first.
+    let file = walkTo("qa");
+
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "blocked",
+      toAgent: null,
+      failure: { reason: "the acceptance does not hold", details: [] },
+    });
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "implementing",
+      toAgent: "coder",
+      newRunId: () => "run-2",
+    });
+
+    expect(only(file).runId).toBe("run-2");
+  });
+
+  it("keeps the run when a blocked task is given up on", () => {
+    // `blocked -> failed` restarts nothing: the run the task stopped in is
+    // still the run whose record a later retry must not overwrite.
+    let file = walkTo("hardening");
+
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "blocked",
+      toAgent: null,
+      failure: { reason: "waiting on a decision", details: [] },
+    });
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "failed",
+      toAgent: null,
+      failure: { reason: "the decision was to stop", details: [] },
+      newRunId: () => "run-2",
+    });
+
+    expect(only(file).runId).toBe("run-1");
+  });
+
+  it("refuses a context written under the run the retry replaces", () => {
+    // Finding 1, made unmakeable. A driver that writes the context before it
+    // knows the retry's run has only the old id to write it under; recording
+    // that path is refused here rather than discovered by whatever later
+    // tried to build an invocation from the task.
+    let file = walkTo("implementing");
+
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "failed",
+      toAgent: null,
+      failure: { reason: "the agent run failed", details: [] },
+    });
+
+    const error = captureError(
+      () =>
+        move(file, {
+          expectedRevision: only(file).revision,
+          to: "implementing",
+          toAgent: "coder",
+          newRunId: () => "run-2",
+          contextPath: ".sailor/state/runs/run-1/agents/coder",
+        }),
+      SailorError
+    );
+
+    expect(error.kind).toBe("invalid-config");
+    expect(error.details.join("\n")).toContain(
+      ".sailor/state/runs/run-2/agents/coder"
+    );
+  });
+
+  it("agrees with `runIdForTransition` about the run a handoff writes under", () => {
+    // The driver has to know the run before it writes the context, and the
+    // transition has to use that same run. One function answers both.
+    let file = walkTo("implementing");
+
+    file = move(file, {
+      expectedRevision: only(file).revision,
+      to: "failed",
+      toAgent: null,
+      failure: { reason: "the agent run failed", details: [] },
+    });
+
+    const failed = only(file);
+    const decided = runIdForTransition(failed, "implementing", () => "run-2");
+
+    expect(decided).toBe("run-2");
+
+    file = move(file, {
+      expectedRevision: failed.revision,
+      to: "implementing",
+      toAgent: "coder",
+      newRunId: () => decided,
+      contextPath: agentContextDirectory(decided, "coder"),
+    });
+
+    expect(only(file).runId).toBe(decided);
+    expect(only(file).contextPath).toBe(
+      ".sailor/state/runs/run-2/agents/coder"
+    );
   });
 
   it("names a task it has never heard of rather than creating one", () => {
