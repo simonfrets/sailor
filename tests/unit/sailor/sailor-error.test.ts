@@ -33,16 +33,21 @@ describe("SailorError", () => {
     expect([...SAILOR_ERROR_KINDS]).toEqual([
       "dependency-install-failed",
       "git-config-failed",
+      "incomplete-evidence",
       "invalid-config",
+      "invalid-invocation",
       "invalid-transition",
       "missing-context",
       "not-a-git-repository",
       "not-installed",
+      "notification-failed",
       "stale-task-revision",
       "task-lock-failed",
+      "tool-gate-failed",
       "unknown-task",
       "unsafe-hook-chain",
       "unsafe-overwrite",
+      "working-tree-audit-failed",
     ]);
   });
 });

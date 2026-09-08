@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { agentIdSchema } from "../agents/agent-id.js";
 import type { BuiltInAgentId } from "../agents/agent-id.js";
+import { notificationChannelSchema } from "../config/notifications-config.js";
 import { projectRelativePathSchema } from "../sailor/project-path.js";
+import { phaseSchema } from "../rules/rule-schema.js";
 
 /**
  * The pipeline states, in the order the workflow runs them.
@@ -145,10 +147,89 @@ export const timestampSchema = z.iso.datetime();
 
 export const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 
+/** One project file, pinned to its content. */
+export const fileDigestSchema = z.strictObject({
+  path: projectRelativePathSchema,
+  /** SHA-256 of the file's bytes when it was accepted. */
+  sha256: sha256Schema,
+});
+
+/**
+ * What the approval accepted: the feature files naming the scenarios the
+ * task must satisfy, and the executable QA procedure that will demonstrate
+ * them. Digests rather than paths alone, so completion can prove the files
+ * QA ran are the files that were approved and not versions rewritten since -
+ * QA's own write scope includes `features/**`, and an agent that could adjust
+ * a scenario to match the behaviour would be accepting its own work.
+ */
+export const acceptanceSchema = z.strictObject({
+  features: z
+    .array(fileDigestSchema)
+    .min(1, "an approval must accept at least one feature file"),
+  procedure: fileDigestSchema,
+});
+
 /** Why a task was blocked or failed. Never a bare boolean. */
 export const taskFailureSchema = z.strictObject({
   reason: z.string().min(1),
   details: z.array(z.string().min(1)).default([]),
+});
+
+/**
+ * The identifier a persisted report is filed under. It becomes a file name
+ * inside the run's report directory, so it is held to one path segment; both
+ * id makers already satisfy it - `createDefaultReportId` is a UUID and
+ * `createDeterministicReportId` is 32 hex characters.
+ */
+export const reportIdSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9][A-Za-z0-9-]{0,127}$/,
+    "report ids are single path segments of letters, digits and dashes"
+  );
+
+/**
+ * What the transition into `completed` records, and the only place it can be
+ * recorded. The shape can express success and nothing else: a gate that
+ * blocked, a procedure with no steps or a feature set with no scenarios is
+ * unrepresentable, so "evidence of a failing run" is not a thing this file
+ * can carry. The one exception is the notification, whose `failed` is a real
+ * outcome a project may configure itself to record and proceed past.
+ *
+ * The digests are compared against the task's recorded acceptance by the
+ * transition guard, which is what makes this evidence *about the accepted
+ * files* rather than about whichever files were lying around at completion.
+ */
+export const completionEvidenceSchema = z.strictObject({
+  /** One entry per final gate phase, each a report that did not block. */
+  gates: z
+    .array(
+      z.strictObject({
+        phase: phaseSchema,
+        reportId: reportIdSchema,
+        status: z.enum(["passed", "passed-with-warnings"]),
+      })
+    )
+    .min(1),
+  /** The accepted QA procedure, the report of running it, and its size. */
+  procedure: z.strictObject({
+    path: projectRelativePathSchema,
+    sha256: sha256Schema,
+    reportId: reportIdSchema,
+    steps: z.int().min(1),
+  }),
+  /** The accepted features and how many scenarios they put in evidence. */
+  gherkin: z.strictObject({
+    features: z.array(fileDigestSchema).min(1),
+    scenarios: z.int().min(1),
+  }),
+  /** What happened when a human was told. Recorded whatever happened. */
+  notification: z.strictObject({
+    channel: notificationChannelSchema,
+    status: z.enum(["delivered", "failed"]),
+    detail: z.string().min(1),
+    at: timestampSchema,
+  }),
 });
 
 /**
@@ -184,6 +265,8 @@ export const transitionRecordSchema = z.strictObject({
   failure: taskFailureSchema.nullable().default(null),
   /** Where the target agent's isolated context was written. */
   contextPath: projectRelativePathSchema.nullable().default(null),
+  /** Only the transition into `completed` records this, and it must. */
+  completion: completionEvidenceSchema.nullable().default(null),
 });
 
 const taskShape = z.strictObject({
@@ -211,6 +294,12 @@ const taskShape = z.strictObject({
    */
   approvedAt: timestampSchema.nullable().default(null),
   approvedBy: z.string().min(1).nullable().default(null),
+  /**
+   * What the approval accepted, or null before one. Defaulted so a
+   * `tasks.yaml` written before acceptance existed still parses; a task
+   * approved without one cannot complete, which is where the absence bites.
+   */
+  acceptance: acceptanceSchema.nullable().default(null),
   /** The stage a blocked or failed task was interrupted in. */
   interruptedFrom: activeStateSchema.nullable().default(null),
   /** The context the current agent was handed. */
@@ -239,6 +328,15 @@ export const taskSchema = taskShape.superRefine((task, ctx) => {
       path: ["approvedBy"],
       message:
         "`approvedAt` and `approvedBy` are one fact: record both or neither",
+    });
+  }
+
+  if (task.acceptance !== null && task.approvedAt === null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["acceptance"],
+      message:
+        "acceptance is recorded by the approval: a task nobody approved accepts nothing",
     });
   }
 
@@ -278,6 +376,9 @@ export const taskFileSchema = z
     }
   });
 
+export type FileDigest = z.output<typeof fileDigestSchema>;
+export type CompletionEvidence = z.output<typeof completionEvidenceSchema>;
+export type Acceptance = z.output<typeof acceptanceSchema>;
 export type TaskFailure = z.output<typeof taskFailureSchema>;
 export type TransitionRecord = z.output<typeof transitionRecordSchema>;
 export type Task = z.output<typeof taskSchema>;

@@ -24,9 +24,16 @@ implemented: a transition is recorded into `.sailor/tasks.yaml` through
 `updateTaskFile`, which holds an exclusive lock across the whole
 read-change-write, and a context is written per run and per agent. Pairing the
 two - writing the next agent's context and recording the transition that points
-at it - is the runtime's job, and there is no runtime: the Codex and Claude
-adapters are **not** implemented yet, so nothing invokes an agent and the
-workflow is driven through the library.
+at it - is the runtime's job, and there is no runtime.
+
+The contract a provider adapter implements exists, and an agent's tool policy
+is enforced around an invocation rather than described in its prompt. The
+Claude adapter is implemented against the installed CLI: it runs
+`claude --print` under the agent's policy, decides every tool call through a
+hook before the call runs, and the working tree is audited afterwards. The
+Codex adapter is **not**: `codex` is not installed where this was built, and
+a guessed adapter would ship behind a passing suite. Nothing yet drives a
+task through its agents, so the workflow is still driven through the library.
 
 ## Requirements
 
@@ -412,8 +419,8 @@ when the project already has one — `chain` runs the existing hook and then the
 sailor gate, `abort` stops. There is no `replace`.
 
 `sailor init` installs these files and `sailor doctor` validates the
-installed copies. Hook dispatch is the next milestone, and enforcing the tool
-policy at run time belongs to the provider adapters.
+installed copies. What the runtime does with the policy is described under
+[Tool policy enforcement](#tool-policy-enforcement).
 
 ## Phase gates
 
@@ -602,8 +609,237 @@ Stopping a run and resuming it - in another process, on another machine, or
 from a fresh clone - therefore needs only `tasks.yaml`: it names the stage the
 task stands at, and the stages already behind it are not run again.
 
+### Completing a task
+
+`qa -> completed` is guarded; acceptance criterion 10 stops being aspirational
+here. Approval already pins what it accepted - at least one Gherkin feature
+file and one executable QA procedure, each recorded on the task as a SHA-256
+digest - and the transition into `completed` now demands `completion`
+evidence with four parts, refused as `incomplete-evidence` (exit `5`) when
+any is missing or inconsistent:
+
+1. **Final gate reports** for both `pre-handoff` and `qa`, run over every
+   check in the rule set rather than QA's slice of it, neither blocked.
+2. **The accepted procedure's results.** The procedure is YAML: steps of the
+   same two runners a rule check has, each declaring which scenarios it
+   `covers`. Every step must have passed.
+3. **Accepted Gherkin evidence.** The evidence's feature digests must equal
+   the approved ones - QA may write `features/**`, so an edited feature file
+   blocks completion by content - and at approval every scenario must be
+   covered by at least one step, so scenario evidence is derived entirely
+   from step results the sailor produced itself.
+4. **A recorded notification result.** `config/notifications.yaml` (seeded)
+   names the channel: `command` runs a configured argument vector with the
+   task in `SAILOR_TASK_*` variables; `log`, the default, appends to a
+   machine-local file under `state/` and makes `sailor doctor` warn that
+   nobody is told. `onFailure: block` (default) refuses completion when
+   delivery fails, as `notification-failed`; `onFailure: record` records the
+   failure and completes.
+
+The evidence's shape can express success and nothing else - a blocked gate or
+an empty procedure is unrepresentable - and the full reports are persisted
+under `.sailor/state/runs/<run-id>/reports/`, with the summary in the
+committed transition record, so a pull request reviews what was demonstrated
+without needing the machine that demonstrated it.
+
+`completeTask` produces all four honestly: it re-hashes the accepted files
+first, runs the gates and the procedure through the injectable
+`CommandRunner`, persists every report whether or not it passed, notifies,
+and only then takes the task lock to record the transition - the lock's
+stale window is two seconds and gates take as long as the project's scripts
+take, so nothing slow runs under it; a concurrent write surfaces as a stale
+revision. What the guard does not check is provenance: like `approvedBy`,
+the evidence's structure and consistency are enforced and the identity of
+whoever assembled it is not, and `completeTask` is the caller that assembles
+it from real files and real runs.
+
+## Provider adapters
+
+An agent is invoked through a provider's command line, and the contract every
+provider implements is one method:
+
+```ts
+interface ProviderAdapter {
+  readonly provider: "claude" | "codex";
+  invoke(invocation: AgentInvocation): AsyncIterable<AgentEvent>;
+}
+```
+
+`AgentInvocation` is what the adapter is handed: the absolute project root,
+the project-relative context path, a snapshot of the task, the attempt and what
+the previous agent left behind, the compiled policy, the logical model profile,
+the tool policy, a timeout and an abort signal. It is built by
+`buildAgentInvocation` from the task and the context the handoff wrote, and
+from nothing else: the capabilities, scopes and scripts are the context's, so
+the adapter and the working-tree audit read one policy. What comes back is
+frozen and copied.
+
+The builder refuses a context that does not belong to the task: one written
+for another task, run or agent, one built from a revision that is neither the
+one this handoff was decided at nor the one it produced - a handoff writes the
+context from the snapshot before the transition, so an earlier attempt left at
+the same path is what that rules out - and a task whose recorded `contextPath`
+is not the path its own `runId` and `agentId` name. The last check is the one
+a retry needs. `transitionTask` mints a new run for a retry,
+and a driver that wrote the context under the old run leaves a task whose run
+and context disagree; nothing validated that pair before, and an invocation
+cannot now be built from it. Every disagreement is listed at once.
+
+An adapter reports `AgentEvent`s: `started` once, any number of `output`
+chunks and `tool-action`s - each action with the verdict `evaluateToolAction`
+gave it - and `finished` once, last, carrying the run's status: `completed`,
+`failed`, `timed-out` or `aborted`. `recordAgentRun` drives an adapter,
+validates every event against the schema, holds them to that order, and
+returns the events with the closing one; an adapter that breaks the protocol
+is reported as a `ProviderProtocolError`, which is a defect rather than a
+condition an exit code should describe. `finishedEventOf` turns a
+`CommandResult` into the closing event, so an adapter built on
+`nodeCommandRunner` gets its timeouts, output caps and environment allowlist
+from there and its final status from here.
+
+An adapter is written against the installed CLI's `--help`, because provider
+flags are version-sensitive and a guessed flag would ship behind a passing
+test suite: no test may make a live call, so no test could catch it. `claude`
+is installed on the machine this was built on and `codex` is not, so the
+Claude adapter exists and the Codex adapter waits for its CLI. The contract
+carries no provider flag.
+
+### The Claude adapter
+
+`createClaudeCliAdapter` runs one `claude` process per invocation through the
+injected `CommandRunner`, with the flags `claude --help` (2.1.263) documents
+for a governed, non-interactive session, and nothing it does not:
+
+- `--print --output-format stream-json --verbose`: one turn, reported as one
+  JSON line per message, read as it arrives. `--no-session-persistence`: the
+  transcript the sailor keeps is the record, not the user's session store.
+- `--restricted --strict-mcp-config --disable-slash-commands`: the file tools
+  are confined to the project, the tools that run code exist only if `--tools`
+  names them, no MCP server and no skill is loaded, and the user's, the
+  project's and the local settings files are ignored while `--settings` still
+  applies. `CLAUDE.md` files are still read; the only flags that stop that
+  also stop the gate or the login.
+- `--tools`: `Read,Glob,Grep,Edit,Write,NotebookEdit`, plus `Bash` only for an
+  agent with `execute: true`. Every agent keeps the file tools because every
+  agent may write to its own scratch directory; which paths is the gate's
+  decision.
+- `--permission-prompts none`: nobody answers a prompt, so whatever would
+  have prompted is denied unless the gate allowed it first.
+- `--model`: the logical profile mapped through `DEFAULT_CLAUDE_MODELS`
+  (`opus`, `opus`, `sonnet`, the aliases `--help` documents) or the mapping
+  the adapter was given. `--max-budget-usd` when a cap is configured.
+- `--settings`: a `PreToolUse` hook on every tool. The hook is the gate.
+
+The gate is `tool-gate-main.js`, shipped in `dist/` and run by the CLI
+through `sh -c` before each tool call with the call as JSON on stdin. It
+reads its configuration - project root, the invocation's `ToolPolicy`, and
+where to log - from one environment variable the adapter sets on the CLI's
+process, maps the call to a `ToolAction`, asks `evaluateToolAction`, appends
+the decision to a log and answers the CLI in the shape the hooks reference
+documents. It fails closed: anything that stops a decision being made exits
+`2`, which blocks the call. A `Read`, `Edit`, `Write` or `NotebookEdit` is
+the path it names, made canonical on both sides - the CLI reports real paths,
+and a project root reached through a symbolic link is the same place - and
+re-expressed from the project root; a path that leaves the project is refused
+as `outside-project` before the policy is consulted. `Glob` and `Grep` are
+searches. A `Bash` command that is plainly words is the argument vector the
+policy decides; one that needs a shell - a pipe, a redirection, `$`, a glob -
+is recorded as `sh -c <command>`, which is what the tool runs and which no
+policy grants. A tool the gate does not know is refused loudly, because the
+session was given exactly the tools it knows.
+
+The adapter reports the run as the contract's events: the CLI's text as
+`output`, each decision as a `tool-action` when the CLI prints the tool's
+result, the CLI's stderr as `output`, and `finishedEventOf` the runner's
+result. The invocation's abort signal terminates the process and the run is
+`aborted`. A `tool_use` in the transcript with no decision in the log is
+`tool-gate-failed`, exit `5`, thrown from the adapter: a CLI that ran a tool
+without consulting the gate is one whose run the sailor cannot vouch for.
+The decision log and the verbatim transcript land under
+`.sailor/state/runs/<run-id>/claude/<agent-id>/attempt-<n>.*`, beside the
+agent's directory rather than inside it, so the record of what the agent did
+is not something the agent may write.
+
+`recordAuditedAgentRun` is the provider-neutral wrapper that makes the audit
+mechanical: it snapshots the tree, drives the adapter through
+`recordAgentRun`, snapshots again and puts every changed path to the
+invocation's policy, with the private index under `.sailor/state/audit/`.
+
+What the mechanism enforces is exactly as strong as the CLI's reporting of
+its own tool calls, and the audit covers writes whatever the CLI reported.
+`nodeCommandRunner` forwards `USER` for this adapter's sake: the CLI keeps
+its login in the macOS keychain and finds it by account name.
+
+## Tool policy enforcement
+
+Design decision 6 says an agent's tool permissions are enforced by the runtime
+and not merely written into its prompt. The definitions and contexts have
+carried `tools`, `writeScopes` and `projectScripts` since Milestone C; this is
+what reads them.
+
+An action is one of four things - a `read`, a `search`, a `write` of one path,
+or an `execute` of one argument vector - and `evaluateToolAction` decides each
+against a `ToolPolicy` built from the agent's context by `toolPolicyFromContext`.
+The decision is a value, allowed or denied, and a denial names its cause from a
+closed list rather than in prose, so a record of a run can be read by kind.
+
+A write is held to four things, in order:
+
+1. It has to be inside the project. `../x`, `/etc/passwd` and a path with a
+   backslash in it are outside, whatever the scopes say: `**` grants the
+   project, not the machine.
+2. The agent's own context directory is scratch. Every agent may write there,
+   whether or not it may edit, so a reviewer with `edit: false` can still
+   leave its findings - except for `context.json`, which is what the agent was
+   handed and is never rewritten by the agent holding it.
+3. The rest of `.sailor/` belongs to the sailor. Rules, definitions,
+   configuration, hooks and `tasks.yaml` are what govern the agents, and a
+   scope that could reach them would let an agent widen its own scope for the
+   next run. No scope reaches them.
+4. Only then do `tools.edit` and the write scopes apply. A scope's wildcards
+   are `*`, `**` and `?` - the schema admits nothing else - and the matcher
+   implements exactly those. Dotfiles match: a scope names a subtree.
+
+An execute is a project script or it is refused. The definition grants scripts
+by their semantic name, and a command is recognised as one in the form the
+sailor would build for it - `npm run test`, `pnpm run lint`, arguments after
+the name permitted - plus the bare `test` each manager documents (`npm test`,
+`npm t`, `pnpm test`, `yarn test`; not `bun test`, which is Bun's own runner).
+`npx jest` runs the same tests and is still refused: it is not a script the
+definition named, and there is no arbitrary command an agent is permitted.
+
+Two things enforce this, because a CLI-driven agent is a separate process and
+the sailor cannot see inside it:
+
+- A provider that can ask before the agent acts asks `evaluateToolAction`
+  through its adapter, and reports the action with the verdict it received.
+  How strongly `execute` is enforced is exactly as strong as that: a command
+  the provider does not report before running it cannot be refused.
+- Whether or not it can, the working tree is compared afterwards.
+  `snapshotWorkingTree` stages everything git would track into a **private
+  index** named through `GIT_INDEX_FILE` and writes it as a tree object, once
+  before the run and once after; `auditWorkingTree` has git list the paths
+  that differ and puts every one of them to the write policy. A change outside
+  the scopes is a violation whatever the provider reported, and a deletion is
+  a change. The repository's own index is never read or written.
+
+The audit is a report, not an exception: a violation is a finding about the
+run, and refusing the handoff is the runtime's decision. Git failing is an
+exception, `working-tree-audit-failed`, exit `5` - the sailor cannot say
+whether the agent stayed in scope, so accepting the work would be the unsafe
+act. A path list git could not print in full is refused for the same reason.
+
+Two limits are worth stating. The audit sees what git sees, so a write to an
+ignored path is outside it - which is what makes `.sailor/state/` scratch -
+and a write through a symlink that leaves the project is a write git records
+against the link. And it is after the fact: it can refuse the handoff and
+record why, but the file has been written, and undoing it is not something the
+sailor does on its own.
+
 ## Planned modules
 
-- Typed Codex and Claude CLI adapter contract
-- Runtime enforcement of the shipped agent tool policies
+- The Codex adapter behind the contract, written against its installed CLI
+- Provider and model configuration in `.sailor/config/`
+- A runtime that drives a task through its agents, recording each audited
+  run on the task
 - Specifier, coder, cleaner, architect, hardener, and QA agents

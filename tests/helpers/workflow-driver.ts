@@ -23,6 +23,8 @@ import {
 } from "../../src/tasks/task-file.js";
 import { WORKFLOW_STATES } from "../../src/tasks/task-schema.js";
 import type {
+  Acceptance,
+  CompletionEvidence,
   Task,
   TaskState,
   WorkflowState,
@@ -44,6 +46,17 @@ export const TASK_ID = "add-login";
 export const TASK_TITLE = "Add login";
 export const RUN_ID = "run-1";
 export const APPROVED_BY = "a-reviewer";
+
+/**
+ * What the driver's approval accepts. The digests are fabricated: the pure
+ * state machine records them without reading a file, and the tests driving
+ * whole workflows are not about acceptance verification, which has real-file
+ * tests of its own.
+ */
+export const DRIVER_ACCEPTANCE: Acceptance = {
+  features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+  procedure: { path: "docs/qa/add-login.yaml", sha256: "d".repeat(64) },
+};
 
 /** When the task is written down. Every stage is entered after it. */
 export const STARTED_AT = new Date("2026-08-27T10:00:00.000Z");
@@ -116,10 +129,41 @@ export const buildWorkflowProject = (packageRoot: string): string =>
     ),
   });
 
+const driverCompletionEvidence = (task: Task): CompletionEvidence => {
+  if (task.acceptance === null) {
+    throw new Error("the driver cannot complete a task nobody accepted");
+  }
+
+  return {
+    gates: [
+      {
+        phase: "pre-handoff",
+        reportId: "driver-gate-pre-handoff",
+        status: "passed",
+      },
+      { phase: "qa", reportId: "driver-gate-qa", status: "passed" },
+    ],
+    procedure: {
+      ...task.acceptance.procedure,
+      reportId: "driver-procedure-report",
+      steps: 1,
+    },
+    gherkin: { features: task.acceptance.features, scenarios: 1 },
+    notification: {
+      channel: "log",
+      status: "delivered",
+      detail: "recorded by the test driver",
+      at: stageAt("completed").toISOString(),
+    },
+  };
+};
+
 export interface DriveWorkflowRequest {
   /** This repository's root, which is where the shipped agents are read from. */
   readonly packageRoot: string;
   readonly projectRoot: string;
+  /** What the approval accepts. Defaults to the fabricated digests above. */
+  readonly acceptance?: Acceptance;
   /**
    * Stop once the task has entered this state, as an interrupted run would.
    * Omitted, the pipeline runs to `completed`.
@@ -217,6 +261,7 @@ const handOff = async (
             taskId: task.id,
             expectedRevision: task.revision,
             approvedBy: APPROVED_BY,
+            acceptance: request.acceptance ?? DRIVER_ACCEPTANCE,
             ruleSetSha256: ruleSet.sha256,
             at: APPROVED_AT,
           })
@@ -259,6 +304,11 @@ const handOff = async (
       ruleSetSha256: ruleSet.sha256,
       at: stageAt(to),
       contextPath,
+      // The guard on `completed` demands evidence. The driver fabricates a
+      // consistent set from the task's own acceptance: these tests are about
+      // the workflow, and the guard's own tests hold the evidence to files
+      // and runs that are real.
+      completion: to === "completed" ? driverCompletionEvidence(current) : null,
     });
   });
 };

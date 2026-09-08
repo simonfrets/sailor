@@ -29,12 +29,17 @@ export const exitCodeForSailorError = (kind: SailorErrorKind): number => {
       return CLI_EXIT_CODES.invalidConfig;
     case "dependency-install-failed":
     case "git-config-failed":
+    case "incomplete-evidence":
+    case "invalid-invocation":
     case "invalid-transition":
     case "not-a-git-repository":
+    case "notification-failed":
     case "stale-task-revision":
     case "task-lock-failed":
+    case "tool-gate-failed":
     case "unsafe-hook-chain":
     case "unsafe-overwrite":
+    case "working-tree-audit-failed":
       return CLI_EXIT_CODES.refused;
   }
 };

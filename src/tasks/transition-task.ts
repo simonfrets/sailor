@@ -3,8 +3,16 @@ import { randomUUID } from "node:crypto";
 import type { AgentId } from "../agents/agent-id.js";
 import { SailorError } from "../sailor/sailor-error.js";
 import { TASK_FILE_SOURCE, findTask, requireTask } from "./task-file.js";
-import { STATE_AGENTS, describeStateOwner, taskSchema } from "./task-schema.js";
+import {
+  STATE_AGENTS,
+  completionEvidenceSchema,
+  describeStateOwner,
+  taskSchema,
+} from "./task-schema.js";
 import type {
+  Acceptance,
+  CompletionEvidence,
+  FileDigest,
   Task,
   TaskFailure,
   TaskFile,
@@ -110,6 +118,7 @@ export const createTask = (
           updatedAt: at,
           approvedAt: null,
           approvedBy: null,
+          acceptance: null,
           interruptedFrom: null,
           contextPath: null,
           history: [],
@@ -125,6 +134,12 @@ export interface ApproveSpecificationRequest {
   readonly expectedRevision: number;
   /** Who approved it. A person or a system, never the agent being unblocked. */
   readonly approvedBy: string;
+  /**
+   * The features and QA procedure the approval accepts, pinned by digest.
+   * Completion later demands evidence about exactly these files, so an
+   * approval that named none would approve work nothing can demonstrate.
+   */
+  readonly acceptance: Acceptance;
   readonly ruleSetSha256: string;
   readonly at: Date;
 }
@@ -172,6 +187,7 @@ export const approveSpecification = (
         updatedAt: at,
         approvedAt: at,
         approvedBy: request.approvedBy,
+        acceptance: request.acceptance,
         history: [
           ...task.history,
           {
@@ -183,17 +199,138 @@ export const approveSpecification = (
             toAgent: task.agentId,
             ruleSetSha256: request.ruleSetSha256,
             gateReportIds: [],
-            artifactPaths: [],
+            // The approval record points at what it accepted.
+            artifactPaths: [
+              ...request.acceptance.features.map((digest) => digest.path),
+              request.acceptance.procedure.path,
+            ],
             at,
             attempt: Math.max(1, entriesInto(task, "awaiting_approval")),
             failure: null,
             contextPath: task.contextPath,
+            completion: null,
           },
         ],
       },
       `approving task \`${task.id}\``
     )
   );
+};
+
+/**
+ * The gates completion demands, both fresh at the moment of completing: they
+ * check different things - lint and types on one, the build on the other of
+ * the shipped rules - and a report from an earlier handoff proves the tree
+ * as it stood then, not the tree being completed now.
+ */
+export const COMPLETION_GATE_PHASES = ["pre-handoff", "qa"] as const;
+
+const shortDigest = (sha256: string): string => `${sha256.slice(0, 12)}..`;
+
+const sameDigest = (a: FileDigest, b: FileDigest): boolean =>
+  a.path === b.path && a.sha256 === b.sha256;
+
+/**
+ * Acceptance criterion 10, enforced where `completed` is entered.
+ *
+ * The schema does the first half: evidence that parses cannot describe a
+ * blocked gate, an empty procedure or a scenario-less feature set. The rest
+ * is consistency with the task's own record - the procedure and features the
+ * evidence is about must be the ones the approval accepted, digest for
+ * digest, and both final gate phases must be present. What is not checked
+ * here is provenance: the sailor validates structure and consistency, not
+ * the identity of whoever assembled it, exactly as it treats `approvedBy`.
+ * `completeTask` is the caller that produces all four parts from the real
+ * files and real runs.
+ */
+const requireCompletionEvidence = (
+  task: Task,
+  completion: CompletionEvidence | null
+): void => {
+  if (completion === null) {
+    throw new SailorError(
+      "incomplete-evidence",
+      `task \`${task.id}\` cannot complete without recorded evidence`,
+      [
+        "completion records the final gates, the accepted QA procedure's results, the accepted Gherkin evidence and the notification result",
+        "`completeTask` runs and records all four",
+      ]
+    );
+  }
+
+  if (task.acceptance === null) {
+    throw new SailorError(
+      "incomplete-evidence",
+      `task \`${task.id}\` records no acceptance, so evidence has nothing to be held against`,
+      [
+        "the specification was approved before acceptance was recorded",
+        "send the task back to `specified` and approve it again",
+      ]
+    );
+  }
+
+  const parsed = completionEvidenceSchema.safeParse(completion);
+
+  if (!parsed.success) {
+    throw new SailorError(
+      "incomplete-evidence",
+      `task \`${task.id}\`'s completion evidence does not hold together`,
+      parsed.error.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      )
+    );
+  }
+
+  const evidence = parsed.data;
+  const issues: string[] = [];
+
+  for (const phase of COMPLETION_GATE_PHASES) {
+    if (!evidence.gates.some((gate) => gate.phase === phase)) {
+      issues.push(`no \`${phase}\` gate report is recorded`);
+    }
+  }
+
+  if (!sameDigest(evidence.procedure, task.acceptance.procedure)) {
+    issues.push(
+      `the procedure that ran (\`${evidence.procedure.path}\` at ${shortDigest(
+        evidence.procedure.sha256
+      )}) is not the accepted one (\`${task.acceptance.procedure.path}\` at ${shortDigest(
+        task.acceptance.procedure.sha256
+      )})`
+    );
+  }
+
+  const accepted = new Map(
+    task.acceptance.features.map((digest) => [digest.path, digest.sha256])
+  );
+
+  for (const digest of evidence.gherkin.features) {
+    const acceptedSha = accepted.get(digest.path);
+
+    if (acceptedSha === undefined) {
+      issues.push(`\`${digest.path}\` was not accepted by the approval`);
+    } else if (acceptedSha !== digest.sha256) {
+      issues.push(
+        `\`${digest.path}\` changed since approval (evidence ${shortDigest(
+          digest.sha256
+        )}, accepted ${shortDigest(acceptedSha)})`
+      );
+    }
+
+    accepted.delete(digest.path);
+  }
+
+  for (const path of accepted.keys()) {
+    issues.push(`\`${path}\` was accepted but carries no evidence`);
+  }
+
+  if (issues.length > 0) {
+    throw new SailorError(
+      "incomplete-evidence",
+      `task \`${task.id}\`'s evidence is not about what was accepted`,
+      issues
+    );
+  }
 };
 
 export interface TransitionRequest {
@@ -218,6 +355,8 @@ export interface TransitionRequest {
   readonly failure?: TaskFailure | null;
   /** Where the target agent's isolated context was written. */
   readonly contextPath?: string | null;
+  /** Required entering `completed`, refused entering anything else. */
+  readonly completion?: CompletionEvidence | null;
   /** Mints the run a retry starts under. Injected so tests stay deterministic. */
   readonly newRunId?: () => string;
 }
@@ -269,6 +408,18 @@ export const transitionTask = (
       "invalid-transition",
       `task \`${task.id}\` has no approved specification, so implementation cannot start`,
       ["approve the specification first; it is recorded as its own revision"]
+    );
+  }
+
+  const completion = request.completion ?? null;
+
+  if (request.to === "completed") {
+    requireCompletionEvidence(task, completion);
+  } else if (completion !== null) {
+    throw new SailorError(
+      "invalid-transition",
+      `moving task \`${task.id}\` to \`${request.to}\` must not record completion evidence`,
+      ["only the transition into `completed` carries it"]
     );
   }
 
@@ -325,6 +476,7 @@ export const transitionTask = (
     attempt: entriesInto(task, request.to) + 1,
     failure,
     contextPath,
+    completion,
   };
 
   return replaceTask(
@@ -339,6 +491,7 @@ export const transitionTask = (
         updatedAt: at,
         approvedAt: clearsApproval ? null : task.approvedAt,
         approvedBy: clearsApproval ? null : task.approvedBy,
+        acceptance: clearsApproval ? null : task.acceptance,
         interruptedFrom: interrupting ? stoppedIn : null,
         contextPath,
         history: [...task.history, record],

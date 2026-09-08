@@ -71,4 +71,43 @@ describe("CLI exit codes", () => {
       CLI_EXIT_CODES.invalidConfig
     );
   });
+
+  it("refuses to hand a task to an agent under a context that is not its own", () => {
+    // Running the stage anyway would run it under whatever policy the
+    // mismatched context carries, which is the outcome the check exists to
+    // prevent, so the invocation is refused rather than repaired.
+    expect(exitCodeForSailorError("invalid-invocation")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
+
+  it("refuses a completion whose evidence is missing or whose notification failed", () => {
+    // Both are requests the sailor understood and deliberately did not
+    // carry out: the task stays in `qa` until the evidence exists and, under
+    // `onFailure: block`, until somebody was actually told.
+    expect(exitCodeForSailorError("incomplete-evidence")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+    expect(exitCodeForSailorError("notification-failed")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
+
+  it("refuses a run whose tool calls the gate did not see", () => {
+    // A tool call the hook never decided is a call the sailor cannot vouch
+    // for. The audit still catches a write, but a command or a read it did
+    // not see is exactly what the gate exists to see, so the run is refused.
+    expect(exitCodeForSailorError("tool-gate-failed")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
+
+  it("refuses a handoff whose working tree could not be audited", () => {
+    // Git failing to hash or compare the tree leaves the sailor unable to say
+    // whether the agent stayed in scope. Accepting the work anyway would be
+    // the unsafe action, so the handoff is what gets refused.
+    expect(exitCodeForSailorError("working-tree-audit-failed")).toBe(
+      CLI_EXIT_CODES.refused
+    );
+  });
 });

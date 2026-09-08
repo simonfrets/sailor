@@ -1,3 +1,4 @@
+import { phaseGateReportSchema } from "../../../src/gates/gate-report-schema.js";
 import {
   createDefaultReportId,
   createDeterministicReportId,
@@ -456,3 +457,75 @@ describe("report identifiers", () => {
     expect(createDefaultReportId()).not.toBe(createDefaultReportId());
   });
 });
+
+describe("persistence schema", () => {
+  it("accepts every report the runner actually produces", async () => {
+    // One run covering a passed check, a failed one, a timeout, a spawn
+    // failure, a missing skipped script and a check outside the phase, so a
+    // field added to the report without reaching the stored schema turns
+    // this red rather than surfacing as an unreadable report later.
+    const rules = [
+      commandRule("r.pass", "c-pass"),
+      commandRule("r.fail", "c-fail"),
+      commandRule("r.slow", "c-slow"),
+      commandRule("r.broken", "c-broken"),
+      `  - id: r.absent
+    description: Absent
+    severity: warning
+    appliesTo: [coder]
+    instruction: Missing script.
+    checks:
+      - id: c-absent
+        runner: project-script
+        script: build
+        whenMissing: skip
+        phases: [pre-handoff]
+      - id: c-elsewhere
+        runner: project-script
+        script: lint
+        phases: [qa]
+`,
+    ].join("");
+    const runner = createFakeCommandRunner((request) => {
+      if (request.command.args.includes("c-fail")) {
+        return exited(2, { stderr: "no\n" });
+      }
+
+      if (request.command.args.includes("c-slow")) {
+        return timedOut(1000);
+      }
+
+      if (request.command.args.includes("c-broken")) {
+        return spawnFailed("ENOENT");
+      }
+
+      return exited(0);
+    });
+
+    const report = await run({ rules, runner: runner.run });
+    const parsed = phaseGateReportSchema.safeParse(report);
+
+    expect(
+      parsed.success
+        ? []
+        : parsed.error.issues.map(
+            (issue) => `${issue.path.join(".")}: ${issue.message}`
+          )
+    ).toEqual([]);
+  });
+});
+
+const commandRule = (
+  ruleId: string,
+  checkId: string
+): string => `  - id: ${ruleId}
+    description: ${checkId}
+    severity: error
+    appliesTo: [coder]
+    instruction: Run it.
+    checks:
+      - id: ${checkId}
+        runner: command
+        argv: [tool, ${checkId}]
+        phases: [pre-handoff]
+`;

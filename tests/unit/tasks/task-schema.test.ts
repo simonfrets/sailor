@@ -235,3 +235,58 @@ describe("approval", () => {
     ).toBe(true);
   });
 });
+
+describe("acceptance on the task", () => {
+  const approved = {
+    approvedAt: "2026-08-31T10:00:00.000Z",
+    approvedBy: "a-reviewer",
+  };
+  const acceptance = {
+    features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+    procedure: { path: "docs/qa/add-login.yaml", sha256: "d".repeat(64) },
+  };
+
+  it("records the digests the approval accepted", () => {
+    const task = buildTask({ ...approved, acceptance });
+
+    expect(taskSchema.safeParse(task).success).toBe(true);
+  });
+
+  it("still reads a task approved before acceptance existed", () => {
+    // A committed tasks.yaml written by an earlier sailor has no
+    // `acceptance` key. It must keep parsing; completion is where its
+    // absence is refused, not here.
+    const withoutAcceptance: Record<string, unknown> = {
+      ...buildTask(approved),
+    };
+
+    delete withoutAcceptance.acceptance;
+
+    const parsed = taskSchema.safeParse(withoutAcceptance);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.acceptance).toBeNull();
+  });
+
+  it("refuses acceptance on a task nobody approved", () => {
+    const parsed = taskSchema.safeParse(buildTask({ acceptance }));
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it("holds the accepted files to the project boundary", () => {
+    for (const path of ["/etc/features/x.feature", "../x.feature"]) {
+      const parsed = taskSchema.safeParse(
+        buildTask({
+          ...approved,
+          acceptance: {
+            ...acceptance,
+            features: [{ path, sha256: "c".repeat(64) }],
+          },
+        })
+      );
+
+      expect(parsed.success).toBe(false);
+    }
+  });
+});

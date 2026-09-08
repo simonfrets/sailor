@@ -36,7 +36,7 @@ export const MAX_CHECK_TIMEOUT_MS = 3_600_000;
 
 const IDENTIFIER_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 
-const identifierSchema = z
+export const identifierSchema = z
   .string()
   .regex(
     IDENTIFIER_PATTERN,

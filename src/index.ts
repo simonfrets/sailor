@@ -65,6 +65,30 @@ export {
 } from "./config/project-config.js";
 export type { ProjectConfig } from "./config/project-config.js";
 export {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_FAILURE_POLICIES,
+  loadNotificationsConfig,
+  notificationChannelSchema,
+  notificationFailurePolicySchema,
+  notificationsConfigSchema,
+  readInstalledNotificationsConfig,
+} from "./config/notifications-config.js";
+export type {
+  NotificationChannel,
+  NotificationFailurePolicy,
+  NotificationsConfig,
+} from "./config/notifications-config.js";
+export {
+  NOTIFICATIONS_LOG_PATH,
+  createNotifier,
+} from "./notifications/notifier.js";
+export type {
+  CreateNotifierOptions,
+  NotificationResult,
+  Notifier,
+  TaskNotification,
+} from "./notifications/notifier.js";
+export {
   EXISTING_HOOK_POLICIES,
   existingHookPolicySchema,
   hooksConfigSchema,
@@ -191,6 +215,169 @@ export type {
   TimedOutCommandResult,
 } from "./processes/command-runner.js";
 
+export {
+  globMatches,
+  matchingWriteScope,
+  toProjectRelativePath,
+} from "./enforcement/write-scope.js";
+export {
+  TOOL_ACTION_KINDS,
+  TOOL_DENIALS,
+  commandSpecSchema,
+  evaluateToolAction,
+  matchProjectScript,
+  toolActionSchema,
+  toolDecisionSchema,
+  toolDenialSchema,
+  toolPolicyFromContext,
+  toolPolicySchema,
+} from "./enforcement/tool-policy.js";
+export type {
+  DeniedToolDecision,
+  ToolAction,
+  ToolDecision,
+  ToolDenial,
+  ToolPolicy,
+} from "./enforcement/tool-policy.js";
+export {
+  WORKING_TREE_AUDIT_TIMEOUT_MS,
+  auditWorkingTree,
+  snapshotWorkingTree,
+} from "./enforcement/working-tree-audit.js";
+export type {
+  AuditWorkingTreeOptions,
+  SnapshotWorkingTreeOptions,
+  WorkingTreeAudit,
+  WorkingTreeSnapshot,
+  WorkingTreeViolation,
+} from "./enforcement/working-tree-audit.js";
+
+export {
+  AGENT_EVENT_KINDS,
+  AGENT_STATUSES,
+  OUTPUT_STREAMS,
+  agentEventSchema,
+  agentStatusOfCommandResult,
+  agentStatusSchema,
+  finishedEventOf,
+} from "./providers/agent-event.js";
+export type {
+  AgentEvent,
+  AgentEventKind,
+  AgentStatus,
+  FinishedEvent,
+  OutputStream,
+} from "./providers/agent-event.js";
+export {
+  PROVIDER_IDS,
+  ProviderProtocolError,
+  buildAgentInvocation,
+  providerIdSchema,
+  recordAgentRun,
+} from "./providers/provider-adapter.js";
+export type {
+  AgentInvocation,
+  AgentRunRecord,
+  BuildAgentInvocationInput,
+  ProviderAdapter,
+  ProviderId,
+  RecordAgentRunOptions,
+} from "./providers/provider-adapter.js";
+export {
+  auditIndexFile,
+  recordAuditedAgentRun,
+} from "./providers/audited-run.js";
+export type {
+  AuditedAgentRunRecord,
+  RecordAuditedAgentRunOptions,
+} from "./providers/audited-run.js";
+export {
+  CLAUDE_PRINT_FLAGS,
+  CLAUDE_TOOL_GATE_MATCHER,
+  DEFAULT_CLAUDE_COMMAND,
+  DEFAULT_CLAUDE_MODELS,
+  buildClaudeCommand,
+  buildClaudePrompt,
+  claudeRunDirectory,
+  claudeRunFiles,
+  claudeToolGateCommand,
+  createClaudeCliAdapter,
+  quoteForPosixShell,
+} from "./providers/claude/claude-cli-adapter.js";
+export type {
+  BuildClaudeCommandInput,
+  ClaudeCliAdapterOptions,
+  ClaudePrompt,
+  ClaudeRunFiles,
+} from "./providers/claude/claude-cli-adapter.js";
+export {
+  createLineSplitter,
+  readClaudeStreamLine,
+} from "./providers/claude/claude-stream.js";
+export type {
+  ClaudeStreamItem,
+  LineSplitter,
+} from "./providers/claude/claude-stream.js";
+export {
+  CLAUDE_GATE_ENVIRONMENT_VARIABLE,
+  CLAUDE_GATE_RECORD_VERSION,
+  CLAUDE_GATE_VERSION,
+  CLAUDE_TOOL_GATE_BUILT,
+  CLAUDE_TOOL_GATE_SOURCE,
+  CLAUDE_TOOL_NAMES,
+  appendClaudeGateRecord,
+  claudeGateConfigSchema,
+  claudeGateRecordSchema,
+  claudeHookInputSchema,
+  claudeToolsFor,
+  decideClaudeToolUse,
+  parseClaudeGateConfig,
+  parseClaudeHookInput,
+  projectRelativeClaudePath,
+  readClaudeGateLog,
+  splitPlainCommand,
+  toolActionOfClaudeToolUse,
+} from "./providers/claude/tool-gate.js";
+export type {
+  ClaudeGateConfig,
+  ClaudeGateRecord,
+  ClaudeHookInput,
+  ClaudeHookResponse,
+  DecideClaudeToolUseInput,
+  DecidedClaudeToolUse,
+  MappedClaudeToolUse,
+} from "./providers/claude/tool-gate.js";
+
+export { prepareAcceptance } from "./qa/acceptance.js";
+export { completeTask } from "./qa/complete-task.js";
+export type {
+  CompleteTaskOptions,
+  CompletionOutcome,
+} from "./qa/complete-task.js";
+export type {
+  PrepareAcceptanceOptions,
+  PreparedAcceptance,
+} from "./qa/acceptance.js";
+export { listScenarios } from "./qa/gherkin.js";
+export type { ListScenariosOptions } from "./qa/gherkin.js";
+export {
+  QA_STEP_STATUSES,
+  loadQaProcedure,
+  qaProcedureReportSchema,
+  qaProcedureSchema,
+  qaStepResultSchema,
+  qaStepSchema,
+  qaStepStatusSchema,
+  runQaProcedure,
+} from "./qa/procedure.js";
+export type {
+  QaProcedure,
+  QaProcedureReport,
+  QaStep,
+  QaStepResult,
+  RunQaProcedureOptions,
+} from "./qa/procedure.js";
+
 export { compileAgentPolicy } from "./prompts/compile-agent-policy.js";
 export type { CompileAgentPolicyInput } from "./prompts/compile-agent-policy.js";
 
@@ -202,6 +389,18 @@ export type {
   ProjectScriptResolution,
   ResolveProjectScriptInput,
 } from "./gates/resolve-project-script.js";
+export {
+  GATE_STATUSES,
+  PHASE_GATE_STATUSES,
+  gateResultSchema,
+  gateStatusSchema,
+  phaseGateReportSchema,
+  reportIdSchema,
+} from "./gates/gate-report-schema.js";
+export type {
+  StoredGateResult,
+  StoredPhaseGateReport,
+} from "./gates/gate-report-schema.js";
 export {
   createDefaultReportId,
   createDeterministicReportId,
@@ -311,6 +510,9 @@ export type {
 export {
   INTERRUPTED_STATES,
   TASK_FILE_VERSION,
+  acceptanceSchema,
+  completionEvidenceSchema,
+  fileDigestSchema,
   TASK_STATES,
   WORKFLOW_STATES,
   runIdSchema,
@@ -322,7 +524,10 @@ export {
   transitionRecordSchema,
 } from "./tasks/task-schema.js";
 export type {
+  Acceptance,
   ActiveState,
+  CompletionEvidence,
+  FileDigest,
   InterruptedState,
   Task,
   TaskFailure,
@@ -362,6 +567,7 @@ export {
   pendingStages,
 } from "./tasks/workflow.js";
 export {
+  COMPLETION_GATE_PHASES,
   approveSpecification,
   createDefaultRunId,
   createTask,
@@ -372,6 +578,18 @@ export type {
   CreateTaskRequest,
   TransitionRequest,
 } from "./tasks/transition-task.js";
+export {
+  RUN_REPORT_VERSION,
+  readRunReport,
+  runReportFile,
+  runReportsDirectory,
+  runReportSchema,
+  writeRunReport,
+} from "./tasks/run-report.js";
+export type {
+  StoredRunReport,
+  WriteRunReportInput,
+} from "./tasks/run-report.js";
 export {
   AGENT_CONTEXT_FILE,
   AGENT_CONTEXT_VERSION,

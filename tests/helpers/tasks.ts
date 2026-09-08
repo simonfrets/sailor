@@ -1,4 +1,6 @@
 import type {
+  Acceptance,
+  CompletionEvidence,
   Task,
   TaskFile,
   TransitionRecord,
@@ -18,9 +20,50 @@ export const buildTask = (overrides: Partial<Task> = {}): Task => ({
   updatedAt: "2026-08-27T00:00:00.000Z",
   approvedAt: null,
   approvedBy: null,
+  acceptance: null,
   interruptedFrom: null,
   contextPath: null,
   history: [],
+  ...overrides,
+});
+
+/** What an approval accepted, for tests that do not read the files behind it. */
+export const buildAcceptance = (
+  overrides: Partial<Acceptance> = {}
+): Acceptance => ({
+  features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+  procedure: { path: "docs/qa/add-login.yaml", sha256: "d".repeat(64) },
+  ...overrides,
+});
+
+/**
+ * Evidence consistent with `buildAcceptance()`: same digests, both gate
+ * phases, a delivered notification. Tests that need it inconsistent override
+ * one field and watch the guard refuse.
+ */
+export const buildCompletionEvidence = (
+  overrides: Partial<CompletionEvidence> = {}
+): CompletionEvidence => ({
+  gates: [
+    { phase: "pre-handoff", reportId: "gate-pre-handoff", status: "passed" },
+    { phase: "qa", reportId: "gate-qa", status: "passed" },
+  ],
+  procedure: {
+    path: "docs/qa/add-login.yaml",
+    sha256: "d".repeat(64),
+    reportId: "qa-procedure-report",
+    steps: 2,
+  },
+  gherkin: {
+    features: [{ path: "features/add-login.feature", sha256: "c".repeat(64) }],
+    scenarios: 3,
+  },
+  notification: {
+    channel: "log",
+    status: "delivered",
+    detail: "appended to .sailor/state/notifications.jsonl",
+    at: "2026-08-31T16:00:00.000Z",
+  },
   ...overrides,
 });
 
@@ -45,5 +88,6 @@ export const buildTransition = (
   attempt: 1,
   failure: null,
   contextPath: null,
+  completion: null,
   ...overrides,
 });

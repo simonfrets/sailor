@@ -14,6 +14,10 @@ export interface NodeScriptRequest {
   readonly args: readonly string[];
   /** The directory the script runs in, as a real invocation would have one. */
   readonly cwd: string;
+  /** Fed to the script's standard input. Omit for none. */
+  readonly input?: string;
+  /** Added to the child's environment, over the cleaned one. */
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 export interface NodeScriptResult {
@@ -49,7 +53,8 @@ export const runNodeScript = (request: NodeScriptRequest): NodeScriptResult => {
     {
       cwd: request.cwd,
       encoding: "utf8",
-      env: cleanEnvironment(),
+      env: cleanEnvironment(request.env ?? {}),
+      ...(request.input === undefined ? {} : { input: request.input }),
     }
   );
 

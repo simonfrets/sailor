@@ -27,6 +27,7 @@ const GITIGNORE_TEMPLATE_NAME = "gitignore";
  */
 export const SEEDED_TEMPLATE_PATHS = [
   "config/hooks.yaml",
+  "config/notifications.yaml",
   "config/project.yaml",
 ] as const;
 
