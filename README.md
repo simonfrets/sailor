@@ -16,8 +16,8 @@ host project by `sailor init`, which `sailor doctor` then checks.
 
 `sailor init` also takes over the repository's Git hooks without discarding
 the ones the project already had, so a gate runs on an ordinary local commit
-rather than only when someone remembers to invoke it. The two configuration
-files it installs belong to the project and can be edited freely.
+rather than only when someone remembers to invoke it. The configuration files
+it installs belong to the project and can be edited freely.
 
 Task state, the workflow state machine and per-agent handoff contexts are
 implemented: a transition is recorded into `.sailor/tasks.yaml` through
@@ -119,11 +119,10 @@ records which is which:
 - **managed** files are the sailor's. `rules/`, `agents/`, the hook
   dispatchers, the launcher and `package.json` are kept in step with the
   version that installed them, and an edit to one is a conflict.
-- **seeded** files are the project's. `config/project.yaml` and
-  `config/hooks.yaml` carry the only decisions discovery cannot make, so they
-  are written once, when absent, and never reconciled again. They exist to be
-  edited; a sailor that refused to run afterwards would be refusing to run
-  because it had been configured.
+- **seeded** files are the project's. Everything under `config/` carries a
+  decision discovery cannot make, so each is written once, when absent, and
+  never reconciled again. They exist to be edited; a sailor that refused to
+  run afterwards would be refusing to run because it had been configured.
 
 Ownership is a property of the shipped file, not of the manifest entry, so a
 project installed by an earlier version is reclassified on its next install
@@ -360,9 +359,9 @@ affect it, so the same logical rules hash identically on any machine.
 ## Agent definitions and configuration
 
 `templates/.sailor/agents/` ships one definition per built-in agent, and
-`templates/.sailor/config/` ships the two settings files the installer will
-place alongside them. Both are validated by the test suite, so a shipped
-template that stops matching its schema fails the build.
+`templates/.sailor/config/` ships the settings files the installer will place
+alongside them. Both are validated by the test suite, so a shipped template
+that stops matching its schema fails the build.
 
 ```yaml
 version: 1
@@ -417,6 +416,27 @@ file that is present but invalid is reported rather than ignored, so a mistyped
 setting cannot silently deliver the opposite of what was asked for. `config/hooks.yaml` says which Git hooks are managed and what to do
 when the project already has one — `chain` runs the existing hook and then the
 sailor gate, `abort` stops. There is no `replace`.
+
+`config/models.yaml` is where a logical profile becomes something a provider's
+`--model` will accept, per provider. A profile the file leaves out runs on the
+model its adapter defaults to, so overriding one model does not mean restating
+the other two, and a profile a later sailor adds keeps working in a file
+written before it existed. A model id is held to being a non-empty string and
+nothing more, because that is all this side can honestly check: `claude
+--model` takes aliases and full names alike and refuses neither until the
+request is made, so validating an id is the consuming adapter's job.
+
+`config/providers.yaml` says which provider CLI runs an agent and how that CLI
+is started. The provider is deliberately not part of an agent definition,
+which names a logical profile and stays portable; `default` names the provider
+every agent runs on and `agents` overrides it for one. Each provider's
+`command` is an argument vector, never a shell string, whose first word is
+looked up on `PATH`, and Claude's block also carries the `maxBudgetUsd` passed
+as `--max-budget-usd` - `null`, no cap, by default, because a cap that stops a
+run half way through leaves the tree the agent was in the middle of changing.
+`codex` is named because the adapter contract admits it and nothing can run on
+it: the CLI was not installed where its adapter would have been written, and
+its flags are not guessed.
 
 `sailor init` installs these files and `sailor doctor` validates the
 installed copies. What the runtime does with the policy is described under

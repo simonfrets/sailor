@@ -32,8 +32,10 @@ describe("listSailorTemplateFiles", () => {
       "agents/specifier.yaml",
       "ci/github-actions.yml",
       "config/hooks.yaml",
+      "config/models.yaml",
       "config/notifications.yaml",
       "config/project.yaml",
+      "config/providers.yaml",
       "rules/base.yaml",
       "rules/custom/README.md",
       "rules/git.yaml",
@@ -64,7 +66,7 @@ describe("listSailorTemplateFiles", () => {
 });
 
 describe("seeded templates", () => {
-  it("hands exactly the three configuration files to the project", () => {
+  it("hands exactly the configuration files to the project", () => {
     // Adding a template is a decision about who owns it, so this list is
     // asserted rather than derived from a path prefix.
     expect(
@@ -72,6 +74,22 @@ describe("seeded templates", () => {
         .filter((file) => file.seeded)
         .map((file) => file.installedPath)
     ).toEqual([...SEEDED_TEMPLATE_PATHS]);
+  });
+
+  it("leaves nothing under config/ for the sailor to reconcile", () => {
+    // Asserting the list against itself cannot catch a config template that
+    // was added and never seeded, and that one would be installed as managed:
+    // reconciled on the next `sailor init`, and a conflict the first time the
+    // project edited the file it was given to edit.
+    const configured = listSailorTemplateFiles(packageRoot).filter((file) =>
+      file.installedPath.startsWith("config/")
+    );
+
+    expect(configured).toHaveLength(SEEDED_TEMPLATE_PATHS.length);
+
+    for (const file of configured) {
+      expect(file.seeded).toBe(true);
+    }
   });
 
   it("names only paths the package actually ships", () => {

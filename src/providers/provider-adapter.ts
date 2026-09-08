@@ -23,6 +23,24 @@ export const providerIdSchema = z.enum(PROVIDER_IDS);
 export type ProviderId = z.output<typeof providerIdSchema>;
 
 /**
+ * The CLI version each provider's adapter was written against, and `null`
+ * where no adapter is written at all.
+ *
+ * Provider flags are version-sensitive and an adapter is written by reading
+ * the installed `--help`, so which version that was is a fact about this
+ * package rather than about any machine. `sailor doctor` compares it with
+ * what the installed CLI reports: a difference is a warning, because the
+ * flags are what matter and only a live run proves them, and a `null` is the
+ * plainer statement that nothing can run on that provider yet.
+ */
+export const PROVIDER_CLI_VERSIONS: Readonly<
+  Record<ProviderId, string | null>
+> = {
+  claude: "2.1.263",
+  codex: null,
+};
+
+/**
  * Everything an adapter is handed for one run of one agent.
  *
  * It carries what the design lists - the project root, the isolated context

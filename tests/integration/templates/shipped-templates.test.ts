@@ -3,11 +3,22 @@ import { dirname, join } from "node:path";
 
 import { parse } from "yaml";
 
-import { loadAgentDefinition } from "../../../src/agents/agent-definition.js";
+import {
+  MODEL_PROFILES,
+  loadAgentDefinition,
+} from "../../../src/agents/agent-definition.js";
 import type { AgentDefinition } from "../../../src/agents/agent-definition.js";
 import { BUILT_IN_AGENT_IDS } from "../../../src/agents/agent-id.js";
 import { loadHooksConfig } from "../../../src/config/hooks-config.js";
+import { loadModelsConfig } from "../../../src/config/models-config.js";
+import { loadNotificationsConfig } from "../../../src/config/notifications-config.js";
 import { loadProjectConfig } from "../../../src/config/project-config.js";
+import {
+  DEFAULT_PROVIDER_COMMANDS,
+  loadProvidersConfig,
+} from "../../../src/config/providers-config.js";
+import { DEFAULT_CLAUDE_MODELS } from "../../../src/providers/claude/claude-cli-adapter.js";
+import { PROVIDER_CLI_VERSIONS } from "../../../src/providers/provider-adapter.js";
 import {
   listSailorTemplateFiles,
   readSailorTemplateFile,
@@ -248,10 +259,16 @@ describe("the shipped agent definitions", () => {
   });
 
   it("names no provider or model id", () => {
+    // The split is the point: a logical profile in the definition, and the
+    // model it resolves to in `config/models.yaml`.
     for (const file of agentFiles) {
       const text = readSailorTemplateFile(packageRoot, file.templatePath);
 
       expect(text).not.toMatch(/claude|codex|gpt|anthropic|openai/i);
+
+      for (const model of Object.values(DEFAULT_CLAUDE_MODELS)) {
+        expect(text).not.toContain(model);
+      }
     }
   });
 
@@ -360,12 +377,43 @@ describe("the shipped config files", () => {
     expect(config.hooks.map((entry) => entry.hook)).toEqual([...HOOK_NAMES]);
   });
 
+  it("maps every logical profile to the model the adapter defaults to", () => {
+    // The shipped file writes the defaults out so a project can see and edit
+    // them, which is a second copy of what `DEFAULT_CLAUDE_MODELS` says. This
+    // is what stops one being changed without the other.
+    const config = loadModelsConfig(readConfig("config/models.yaml"), {
+      source: "config/models.yaml",
+    });
+
+    expect(config.models.claude).toEqual(DEFAULT_CLAUDE_MODELS);
+    expect(Object.keys(DEFAULT_CLAUDE_MODELS).sort()).toEqual(
+      [...MODEL_PROFILES].sort()
+    );
+  });
+
+  it("runs every agent on the one provider that has an adapter", () => {
+    const config = loadProvidersConfig(readConfig("config/providers.yaml"), {
+      source: "config/providers.yaml",
+    });
+
+    expect(config.default).toBe("claude");
+    expect(PROVIDER_CLI_VERSIONS[config.default]).not.toBeNull();
+    expect(config.agents).toEqual({});
+    expect(config.claude.command).toEqual([
+      ...DEFAULT_PROVIDER_COMMANDS.claude,
+    ]);
+    // No cap by default: one that stopped a run half way through would leave
+    // the tree the agent was in the middle of changing.
+    expect(config.claude.maxBudgetUsd).toBeNull();
+  });
+
   it("stays valid when only its version key survives", () => {
-    // Both files are seeded: written once and then owned by the project. A
-    // later sailor that adds a key must not invalidate a copy written before
-    // that key existed, which holds only while every key has a default.
-    // `not.toThrow()` alone would pass on defaults that had drifted away from
-    // what the shipped files say, which is the thing seeding depends on.
+    // Every one of these is seeded: written once and then owned by the
+    // project. A later sailor that adds a key must not invalidate a copy
+    // written before that key existed, which holds only while every key has a
+    // default. `not.toThrow()` alone would pass on defaults that had drifted
+    // away from what the shipped files say, which is the thing seeding
+    // depends on.
     expect(
       loadProjectConfig("version: 1\n", { source: "config/project.yaml" })
     ).toEqual(
@@ -376,6 +424,25 @@ describe("the shipped config files", () => {
     expect(
       loadHooksConfig("version: 1\n", { source: "config/hooks.yaml" })
     ).toMatchObject({ version: 1, onExistingHook: "chain", hooks: [] });
+    expect(
+      loadNotificationsConfig("version: 1\n", {
+        source: "config/notifications.yaml",
+      })
+    ).toEqual(
+      loadNotificationsConfig(readConfig("config/notifications.yaml"), {
+        source: "config/notifications.yaml",
+      })
+    );
+    expect(
+      loadModelsConfig("version: 1\n", { source: "config/models.yaml" })
+    ).toMatchObject({ version: 1, models: {} });
+    expect(
+      loadProvidersConfig("version: 1\n", { source: "config/providers.yaml" })
+    ).toEqual(
+      loadProvidersConfig(readConfig("config/providers.yaml"), {
+        source: "config/providers.yaml",
+      })
+    );
   });
 
   it("runs each hook endpoint at its own phase", () => {
