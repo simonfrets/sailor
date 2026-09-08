@@ -396,21 +396,60 @@ describe("diagnoseSailor on the configured provider", () => {
     ).toEqual([["--wrapped", "--version"]]);
   });
 
-  it("says plainly that a provider with no adapter can run nothing", async () => {
+  it("reports a provider this sailor has no adapter for, before running anything", async () => {
     // `codex` is admitted by the contract and has no adapter, so a project
-    // that pointed its agents at it would otherwise see a healthy diagnosis
-    // and no way to run one.
+    // that pointed its agents at it can run none of them. Probing the CLI
+    // first would have made installing `codex` look like the fix, when what
+    // is missing is in this package rather than on the machine.
+    const ran: CommandRequest[] = [];
     const root = buildInstalled({
       files: {
         ".sailor/config/providers.yaml": "version: 1\ndefault: codex\n",
       },
     });
-    const diagnosis = await diagnose(root);
-    const entry = find(diagnosis, "provider");
+    const entry = find(await diagnose(root, { ran }), "provider");
 
-    expect(entry.status).toBe("warning");
-    expect(entry.detail).toContain("codex");
-    expect(entry.detail).toContain("no adapter");
+    expect(entry.status).toBe("problem");
+    expect(entry.detail).toContain("no adapter for codex");
+    expect(
+      ran.filter((request) => request.command.executable === "codex")
+    ).toEqual([]);
+  });
+
+  it("checks the provider a per-agent override names, not only the default", async () => {
+    // An override breaks exactly the agent it names while the default one
+    // reports perfectly, so checking the default alone would call that
+    // installation healthy.
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml":
+          "version: 1\ndefault: claude\nagents:\n  qa: codex\n",
+      },
+    });
+    const entry = find(await diagnose(root), "provider");
+
+    expect(entry.status).toBe("problem");
+    expect(entry.detail).toContain("claude 2.1.263");
+    expect(entry.detail).toContain("no adapter for codex");
+  });
+
+  it("names a provider once however many agents are routed to it", async () => {
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml": [
+          "version: 1",
+          "default: claude",
+          "agents:",
+          "  qa: claude",
+          "  coder: codex",
+          "  cleaner: codex",
+          "",
+        ].join("\n"),
+      },
+    });
+    const entry = find(await diagnose(root), "provider");
+
+    expect(entry.detail.split("\n")).toHaveLength(2);
   });
 
   it("cannot check the provider while its configuration is unreadable", async () => {

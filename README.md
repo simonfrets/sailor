@@ -185,14 +185,20 @@ configuration files, the configured provider's CLI, the rule set, the private
 dependency tree, Git hook reachability, whether every check can resolve the
 project script it names, and whether anything runs the gates in CI.
 
-The provider check runs the command `config/providers.yaml` names with
-`--version`. A command that is not there is a **problem**: the project named
-it, and nothing can invoke an agent without it. A version other than the one
-the adapter was written against is a **warning**, because the flags are what
-matter, an adapter is written by reading one `--help`, and only a live run
-proves those flags are still there - which is not a claim a diagnosis is in a
-position to make. A provider that has no adapter at all is the same shape of
-warning: the CLI may be perfectly installed and still run nothing.
+The provider check covers every provider `config/providers.yaml` could route
+an agent to - the default and each per-agent override, because an override to
+a provider that is not there breaks exactly the agent it names while the
+default one reports perfectly.
+
+A provider this sailor has no adapter for is a **problem**, decided before
+anything is spawned: that is a fact about the package rather than about the
+machine, and probing first would make installing the CLI look like the fix.
+Otherwise the command is run with `--version`. A command that is not there is
+a **problem** too: the project named it, and nothing can invoke an agent
+without it. A version other than the one the adapter was written against is a
+**warning**, because the flags are what matter, an adapter is written by
+reading one `--help`, and only a live run proves those flags are still there -
+which is not a claim a diagnosis is in a position to make.
 
 A project that installs a bundle naming a script it does not have is the case
 worth calling out: `whenMissing: fail` means the rule considers the absence to

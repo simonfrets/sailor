@@ -13,6 +13,8 @@ import {
 } from "../config/providers-config.js";
 import type { ProvidersConfig } from "../config/providers-config.js";
 import { PROVIDER_CLI_VERSIONS } from "../providers/provider-adapter.js";
+import type { ProviderId } from "../providers/provider-adapter.js";
+import { compareCodeUnits } from "../rules/hash-rule-set.js";
 import { describeFailure } from "../sailor/sailor-error.js";
 import {
   SAILOR_DIRECTORY,
@@ -320,18 +322,85 @@ const diagnoseConfig = (projectRoot: string): ConfigDiagnosis => {
   };
 };
 
+interface ProviderReport {
+  readonly status: DiagnosticStatus;
+  readonly detail: string;
+}
+
 /**
- * Whether an agent could actually be started on the provider the project
- * configured.
+ * Whether an agent could actually be started on one configured provider.
  *
- * Not on `PATH` is a problem: `config/providers.yaml` named that command, and
- * nothing can invoke an agent without it. A version other than the one the
- * adapter was written against is a warning, because the flags are what
- * matter, an adapter is written by reading one `--help`, and only a live run
- * proves those flags are still there - which is not a claim a diagnosis is in
- * a position to make. A provider with no adapter at all is the same shape of
- * warning: the CLI may be perfectly installed and still run nothing.
+ * A provider this sailor has no adapter for is a problem, and it is decided
+ * before anything is spawned: it is a fact about the package rather than
+ * about the machine, so installing that CLI would appear to fix a diagnosis
+ * that was never about the CLI.
+ *
+ * Then, not on `PATH` is a problem, because `config/providers.yaml` named
+ * that command and nothing can invoke an agent without it. A version other
+ * than the one the adapter was written against is a warning: the flags are
+ * what matter, an adapter is written by reading one `--help`, and only a live
+ * run proves those flags are still there, which is not a claim a diagnosis is
+ * in a position to make.
  */
+const reportProvider = async (
+  provider: ProviderId,
+  providers: ProvidersConfig,
+  projectRoot: string,
+  runner: CommandRunner
+): Promise<ProviderReport> => {
+  const written = PROVIDER_CLI_VERSIONS[provider];
+
+  if (written === null) {
+    return {
+      status: "problem",
+      detail: `this sailor has no adapter for ${provider}, so no agent can be run on it whether or not its CLI is installed`,
+    };
+  }
+
+  const [executable, ...args] = providerCommand(providers, provider);
+  const probe = [...args, "--version"];
+  const described = `\`${[executable, ...probe].join(" ")}\``;
+  const result = await runner({
+    command: { executable, args: probe },
+    cwd: projectRoot,
+    env: null,
+    timeoutMs: TOOL_TIMEOUT_MS,
+  });
+
+  if (result.outcome !== "exited" || result.exitCode !== 0) {
+    return {
+      status: "problem",
+      detail: `${described} ${describeCommandResult(result)}, so no agent can be run on ${provider}`,
+    };
+  }
+
+  const reported = result.output.stdout.trim().split("\n", 1).join("");
+
+  return reported.split(" ", 1).join("") === written
+    ? { status: "ok", detail: `${provider} ${reported}, from ${described}` }
+    : {
+        status: "warning",
+        detail: `${described} reports ${reported}; the adapter was written against ${written}, and only a live run proves the flags it uses are still there`,
+      };
+};
+
+/**
+ * Every provider the configuration could route an agent to.
+ *
+ * The default and each per-agent override, because an override to a provider
+ * that is not there breaks exactly the agent it names while the default one
+ * reports perfectly. Sorted after the default so the report does not depend
+ * on the order the overrides happen to be written in.
+ */
+const configuredProviders = (
+  providers: ProvidersConfig
+): readonly ProviderId[] => [
+  providers.default,
+  ...[...new Set(Object.values(providers.agents))]
+    .filter((provider) => provider !== providers.default)
+    .sort(compareCodeUnits),
+];
+
 const diagnoseProvider = async (
   projectRoot: string,
   providers: ProvidersConfig | null,
@@ -348,51 +417,26 @@ const diagnoseProvider = async (
     );
   }
 
-  const provider = providers.default;
-  const [executable, ...args] = providerCommand(providers, provider);
-  const probe = [...args, "--version"];
-  const described = `\`${[executable, ...probe].join(" ")}\``;
-  const result = await runner({
-    command: { executable, args: probe },
-    cwd: projectRoot,
-    env: null,
-    timeoutMs: TOOL_TIMEOUT_MS,
-  });
+  const reports: ProviderReport[] = [];
 
-  if (result.outcome !== "exited" || result.exitCode !== 0) {
-    return diagnostic(
-      "provider",
-      title,
-      "problem",
-      `${described} ${describeCommandResult(result)}, so no agent can be run on ${provider}`
+  for (const provider of configuredProviders(providers)) {
+    reports.push(
+      await reportProvider(provider, providers, projectRoot, runner)
     );
   }
 
-  const reported = result.output.stdout.trim().split("\n", 1).join("");
-  const written = PROVIDER_CLI_VERSIONS[provider];
+  const status = reports.some((report) => report.status === "problem")
+    ? "problem"
+    : reports.some((report) => report.status === "warning")
+      ? "warning"
+      : "ok";
 
-  if (written === null) {
-    return diagnostic(
-      "provider",
-      title,
-      "warning",
-      `${described} reports ${reported}, but this sailor has no adapter for ${provider}, so no agent can run on it`
-    );
-  }
-
-  return reported.split(" ", 1).join("") === written
-    ? diagnostic(
-        "provider",
-        title,
-        "ok",
-        `${provider} ${reported}, from ${described}`
-      )
-    : diagnostic(
-        "provider",
-        title,
-        "warning",
-        `${described} reports ${reported}; the adapter was written against ${written}, and only a live run proves the flags it uses are still there`
-      );
+  return diagnostic(
+    "provider",
+    title,
+    status,
+    reports.map((report) => report.detail).join("\n")
+  );
 };
 
 /**
