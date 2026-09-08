@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+# `npm pack` writes the release tarball here; the release attaches it.
+*.tgz
 *.log
 .DS_Store
 .env
