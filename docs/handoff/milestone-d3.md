@@ -122,8 +122,8 @@ directly. Do not describe partial work as complete.
 
 ## What D3 added
 
-Four commits on `codex/milestone-d3`, cut from `codex/milestone-d` at
-`1921bea`. The repository moved while this was built: the GitHub project is
+Five commits on `codex/milestone-d3`, cut from `codex/milestone-d` at
+`1921bea` and rebased onto `main` afterwards. The repository moved while this was built: the GitHub project is
 now `simonfrets/sailor`, and the local checkout is the plain clone at
 `<PROJECTS>/sailor` with this branch as the sibling worktree
 `<PROJECTS>/sailor-codex-milestone-d3`. The bare repository at
@@ -132,15 +132,21 @@ now `simonfrets/sailor`, and the local checkout is the plain clone at
 stale `sailor-v1-scaffold`) point at the same remote, are clean, and are
 kept only until someone deletes them.
 
-**This branch still carries the pre-rename names** - `.sailor/`,
-`src/sailor/`, `SAILOR_*` - because it was cut from `codex/milestone-d`
-as instructed, and that branch predates PR #4. `main` has the rename. A
-dry-run merge of `main` into `codex/milestone-d` conflicts in nine files
-(`README.md`, `src/tasks/agent-context.ts`, `src/tasks/task-schema.ts`,
-four tests, and two files added under directories the rename moved), and
-every file this branch adds imports from `src/sailor/`. Rebasing
-`codex/milestone-d` and this branch onto `main` is a session of its own and
-comes before D5.
+**Rebased onto the rename.** This branch and `codex/milestone-d` were cut
+before PR #4 merged and were written with the old names; a dry-run merge of
+`main` conflicted in nine files. Rather than resolve that by hand, the
+rename commit `a169d97` was replicated as a script - the path renames, the
+case-preserving substitution, the three phrases it worded by hand, a
+prettier pass and the `PUBLIC_API` re-sort - and proved exact: applied to
+`fed94c2` it reproduces `a169d97`'s tree byte for byte, and `main`'s tree
+is that tree. Each of the seventeen commits was then re-committed on top of
+`main` with the script applied to its tree, keeping author, date and
+message, the message with the same substitution so it says what its diff
+shows. Every rebased tree type-checks, lints and passes the suite.
+`codex/milestone-d` was moved to the rebased `Record what the Claude
+adapter starts from`. The hashes quoted in this document and in
+`milestone-d.md` are the pre-rebase ones; the subjects are unchanged. The
+pull request from this branch is the first time CI runs any of it.
 
 `npm run check`, `npm run build`, `npm run test:coverage` and
 `npm pack --dry-run` pass: 947 tests across 82 suites at 98.64% statements,
@@ -295,8 +301,6 @@ as a permission denial.
 
 ### Open, after D3
 
-- **The rename.** See the top of this section. Nothing on this branch or on
-  `codex/milestone-d` builds on `main` until it is rebased.
 - **D4** stays unwritten: `codex` is still not installed.
 - **D5**: `config/models.yaml` and `config/providers.yaml`. The adapter
   takes `models` and `claude` (the command) as options, which is where D5
@@ -314,11 +318,13 @@ as a permission denial.
 
 ## Starting prompt for the next session
 
-> Continue Sailor in a worktree of `<PROJECTS>/sailor`. `codex/milestone-d`
-> and `codex/milestone-d3` predate the rename on `main`; rebase both onto
-> `main` (`.sailor` becomes `.sailor`, `src/sailor` becomes `src/sailor`,
-> `SAILOR_*` becomes `SAILOR_*`), keeping every commit's tree green, and
-> open the pull request so CI runs them for the first time. Read
+> Continue Sailor in a worktree of `<PROJECTS>/sailor`, cut from
+> `codex/milestone-d3` or from `main` once its pull request has merged. Read
 > `AGENTS.md`, `README.md`, `docs/handoff/milestone-d.md` and
-> `docs/handoff/milestone-d3.md` completely first. Do not start D5 or D6 in
-> the same session. Report any deviation directly.
+> `docs/handoff/milestone-d3.md` completely before writing code. Implement
+> **D5 only**: `.sailor/config/models.yaml` and `providers.yaml`, validated
+> and seeded like the other config files, read into the Claude adapter's
+> `models` and `claude` options, and reported by `sailor doctor`, including
+> whether `claude` is on `PATH`. `codex` is not installed, so D4 stays
+> unwritten. Test-first, with fake executables and never a live call from a
+> test. Run the completion gate and report any deviation directly.
