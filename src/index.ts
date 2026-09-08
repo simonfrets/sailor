@@ -636,6 +636,31 @@ export type {
   ContextHandoff,
 } from "./tasks/agent-context.js";
 
+export {
+  installedAgentPath,
+  readInstalledAgentDefinition,
+} from "./runtime/installed-agents.js";
+export {
+  createProviderAdapter,
+  hasProviderAdapter,
+  requireProviderAdapters,
+} from "./runtime/provider-adapters.js";
+export type { CreateProviderAdapterOptions } from "./runtime/provider-adapters.js";
+export {
+  DEFAULT_AGENT_TIMEOUT_MS,
+  DRIVEN_STAGE_STATUSES,
+  DRIVE_DESTINATION,
+  HANDOFF_GATE_PHASE,
+  driveTask,
+} from "./runtime/drive-task.js";
+export type {
+  DriveOutcome,
+  DriveTaskOptions,
+  DriveTaskResult,
+  DrivenStage,
+  DrivenStageStatus,
+} from "./runtime/drive-task.js";
+
 export { CLI_COMMANDS, parseCliArguments } from "./cli/parse-cli-arguments.js";
 export type {
   CliCommand,
