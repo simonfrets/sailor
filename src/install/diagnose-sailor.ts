@@ -2,9 +2,17 @@ import { readdirSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 import { loadHooksConfig } from "../config/hooks-config.js";
+import { loadModelsConfig } from "../config/models-config.js";
 import { readInstalledNotificationsConfig } from "../config/notifications-config.js";
 import type { HooksConfig } from "../config/hooks-config.js";
 import { loadProjectConfig } from "../config/project-config.js";
+import {
+  loadProvidersConfig,
+  providerCommand,
+  providersConfigSchema,
+} from "../config/providers-config.js";
+import type { ProvidersConfig } from "../config/providers-config.js";
+import { PROVIDER_CLI_VERSIONS } from "../providers/provider-adapter.js";
 import { describeFailure } from "../sailor/sailor-error.js";
 import {
   SAILOR_DIRECTORY,
@@ -222,54 +230,169 @@ interface ConfigDiagnosis {
   readonly diagnostic: Diagnostic;
   /** Null when the file is missing or invalid, so the hook check can say so. */
   readonly hooks: HooksConfig | null;
+  /** Null only when the file is invalid: absent means the defaults apply. */
+  readonly providers: ProvidersConfig | null;
+}
+
+interface ParsedConfigFile<T> {
+  /** False when the file is not there at all, which a seeded file may be. */
+  readonly present: boolean;
+  /** Null when the file is absent or invalid: either way it cannot be used. */
+  readonly value: T | null;
 }
 
 const diagnoseConfig = (projectRoot: string): ConfigDiagnosis => {
   const problems: string[] = [];
-  let hooks: HooksConfig | null = null;
+  const checked: string[] = [];
 
-  const projectSource = `${SAILOR_DIRECTORY}/${SAILOR_PATHS.projectConfig}`;
-  const projectText = readTextFileIfPresent(
-    sailorPath(projectRoot, SAILOR_PATHS.projectConfig)
-  );
+  const parse = <T>(
+    path: string,
+    load: (text: string, options: { readonly source: string }) => T
+  ): ParsedConfigFile<T> => {
+    const source = `${SAILOR_DIRECTORY}/${path}`;
+    const text = readTextFileIfPresent(sailorPath(projectRoot, path));
 
-  if (projectText === null) {
-    problems.push(`${projectSource} is missing`);
-  } else {
+    if (text === null) {
+      return { present: false, value: null };
+    }
+
     try {
-      loadProjectConfig(projectText, { source: projectSource });
+      const value = load(text, { source });
+
+      checked.push(source);
+
+      return { present: true, value };
     } catch (error: unknown) {
       problems.push(describeFailure(error));
-    }
-  }
 
-  const hooksSource = `${SAILOR_DIRECTORY}/${SAILOR_PATHS.hooksConfig}`;
-  const hooksText = readTextFileIfPresent(
-    sailorPath(projectRoot, SAILOR_PATHS.hooksConfig)
+      return { present: true, value: null };
+    }
+  };
+
+  /**
+   * A file the installation cannot do without.
+   *
+   * A seeded file's absence is not a problem - an installation made before it
+   * shipped simply has no copy, and the defaults are what it would have been
+   * seeded with - but an invalid file is one either way, because a project
+   * that configured something and mistyped it is quietly getting the opposite
+   * of what it asked for.
+   */
+  const required = <T>(
+    path: string,
+    load: (text: string, options: { readonly source: string }) => T
+  ): T | null => {
+    const read = parse(path, load);
+
+    if (!read.present) {
+      problems.push(`${SAILOR_DIRECTORY}/${path} is missing`);
+    }
+
+    return read.value;
+  };
+
+  required(SAILOR_PATHS.projectConfig, loadProjectConfig);
+
+  const hooks = required(SAILOR_PATHS.hooksConfig, loadHooksConfig);
+
+  parse(SAILOR_PATHS.modelsConfig, loadModelsConfig);
+
+  const providersFile = parse(
+    SAILOR_PATHS.providersConfig,
+    loadProvidersConfig
   );
-
-  if (hooksText === null) {
-    problems.push(`${hooksSource} is missing`);
-  } else {
-    try {
-      hooks = loadHooksConfig(hooksText, { source: hooksSource });
-    } catch (error: unknown) {
-      problems.push(describeFailure(error));
-    }
-  }
+  const providers = providersFile.present
+    ? providersFile.value
+    : providersConfigSchema.parse({ version: 1 });
 
   return {
     hooks,
+    providers,
     diagnostic:
       problems.length === 0
         ? diagnostic(
             "config",
             "Configuration",
             "ok",
-            `${projectSource} and ${hooksSource} are valid`
+            `${checked.join(", ")} are valid`
           )
         : diagnostic("config", "Configuration", "problem", problems.join("\n")),
   };
+};
+
+/**
+ * Whether an agent could actually be started on the provider the project
+ * configured.
+ *
+ * Not on `PATH` is a problem: `config/providers.yaml` named that command, and
+ * nothing can invoke an agent without it. A version other than the one the
+ * adapter was written against is a warning, because the flags are what
+ * matter, an adapter is written by reading one `--help`, and only a live run
+ * proves those flags are still there - which is not a claim a diagnosis is in
+ * a position to make. A provider with no adapter at all is the same shape of
+ * warning: the CLI may be perfectly installed and still run nothing.
+ */
+const diagnoseProvider = async (
+  projectRoot: string,
+  providers: ProvidersConfig | null,
+  runner: CommandRunner
+): Promise<Diagnostic> => {
+  const title = "Provider";
+
+  if (providers === null) {
+    return diagnostic(
+      "provider",
+      title,
+      "warning",
+      `the provider cannot be checked while ${SAILOR_DIRECTORY}/${SAILOR_PATHS.providersConfig} is unreadable`
+    );
+  }
+
+  const provider = providers.default;
+  const [executable, ...args] = providerCommand(providers, provider);
+  const probe = [...args, "--version"];
+  const described = `\`${[executable, ...probe].join(" ")}\``;
+  const result = await runner({
+    command: { executable, args: probe },
+    cwd: projectRoot,
+    env: null,
+    timeoutMs: TOOL_TIMEOUT_MS,
+  });
+
+  if (result.outcome !== "exited" || result.exitCode !== 0) {
+    return diagnostic(
+      "provider",
+      title,
+      "problem",
+      `${described} ${describeCommandResult(result)}, so no agent can be run on ${provider}`
+    );
+  }
+
+  const reported = result.output.stdout.trim().split("\n", 1).join("");
+  const written = PROVIDER_CLI_VERSIONS[provider];
+
+  if (written === null) {
+    return diagnostic(
+      "provider",
+      title,
+      "warning",
+      `${described} reports ${reported}, but this sailor has no adapter for ${provider}, so no agent can run on it`
+    );
+  }
+
+  return reported.split(" ", 1).join("") === written
+    ? diagnostic(
+        "provider",
+        title,
+        "ok",
+        `${provider} ${reported}, from ${described}`
+      )
+    : diagnostic(
+        "provider",
+        title,
+        "warning",
+        `${described} reports ${reported}; the adapter was written against ${written}, and only a live run proves the flags it uses are still there`
+      );
 };
 
 /**
@@ -650,6 +773,11 @@ export const diagnoseSailor = async (
   }
 
   const config = diagnoseConfig(projectRoot);
+  const provider = await diagnoseProvider(
+    projectRoot,
+    config.providers,
+    runner
+  );
   const rules = diagnoseRules(projectRoot);
   const profile = await readProjectProfile(projectRoot, runner);
   const scripts = diagnoseProjectScripts(rules.ruleSet, profile);
@@ -662,6 +790,7 @@ export const diagnoseSailor = async (
     diagnoseInstallation(projectRoot, options.sailorVersion),
     config.diagnostic,
     diagnoseNotifications(projectRoot),
+    provider,
     rules.diagnostic,
     ...(scripts === null ? [] : [scripts]),
     diagnoseRuntime(projectRoot),

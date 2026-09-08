@@ -166,6 +166,13 @@ describe("sailor init", () => {
       "rules",
       "version.json",
     ]);
+    expect(readdirSync(join(root, ".sailor", "config")).sort()).toEqual([
+      "hooks.yaml",
+      "models.yaml",
+      "notifications.yaml",
+      "project.yaml",
+      "providers.yaml",
+    ]);
   });
 
   it("changes nothing outside .sailor", async () => {
@@ -249,7 +256,10 @@ describe("sailor doctor", () => {
     // The seeded notification channel is the machine-local log, so a fresh
     // installation is told that completions reach nobody yet.
     expect(result.stdout).toContain("WARN Notifications —");
-    expect(result.stdout).toContain("Result: 0 problems, 2 warnings");
+    // The fake reports a version that is not the one the adapter was written
+    // against, which is a warning and not a failure.
+    expect(result.stdout).toContain("WARN Provider — `claude --version`");
+    expect(result.stdout).toContain("Result: 0 problems, 3 warnings");
     expect(result.exitCode).toBe(CLI_EXIT_CODES.ok);
   });
 
