@@ -163,7 +163,7 @@ to the release for that version:
 
 ```json
 "dependencies": {
-  "sailor": "https://github.com/<owner>/<repo>/releases/download/v0.1.0/sailor-0.1.0.tgz"
+  "sailor": "https://github.com/<owner>/<repo>/releases/download/v0.2.0/sailor-0.2.0.tgz"
 }
 ```
 
