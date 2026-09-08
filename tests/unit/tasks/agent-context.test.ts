@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentDefinition } from "../../../src/agents/agent-definition.js";
@@ -137,6 +137,22 @@ describe("buildAgentContext", () => {
     expect(context(definition("coder")).ruleSetSha256).toBe(RULE_SET_SHA256);
   });
 
+  it("carries what the agent is called and what it is for", () => {
+    // The prompt an adapter builds says which agent is running; without
+    // these it can say the id and nothing about the role behind it.
+    const built = context(
+      definition("qa", {
+        displayName: "QA",
+        summary: "Runs the accepted QA procedure against the finished change.",
+      })
+    );
+
+    expect(built.displayName).toBe("QA");
+    expect(built.summary).toBe(
+      "Runs the accepted QA procedure against the finished change."
+    );
+  });
+
   it("refuses to build a context it could not write back", () => {
     const error = captureError(
       () => context(definition("coder"), { policy: "" }),
@@ -254,6 +270,29 @@ describe("readAgentContext", () => {
       first.writeScopes.push("/etc");
     }).toThrow(TypeError);
     expect(readAgentContext(root, path).policy).toBe(first.policy);
+  });
+
+  it("refuses a context an older sailor wrote", () => {
+    // A context is derived entirely from tracked things and is rewritten by
+    // the run that needs it, so refusing one whose shape predates the
+    // agent's summary costs a rebuild rather than any recorded fact.
+    const root = buildSailorProject();
+    const path = writeAgentContext(root, context(definition("coder")));
+    const stale = JSON.parse(
+      readFileSync(join(root, path, AGENT_CONTEXT_FILE), "utf8")
+    ) as Record<string, unknown>;
+
+    delete stale.displayName;
+    delete stale.summary;
+    writeFileSync(
+      join(root, path, AGENT_CONTEXT_FILE),
+      JSON.stringify({ ...stale, version: 1 })
+    );
+
+    const error = captureError(() => readAgentContext(root, path), SailorError);
+
+    expect(error.kind).toBe("invalid-config");
+    expect(error.details.join("\n")).toContain("version");
   });
 
   it("reports a context this machine never wrote as missing, not as broken", () => {

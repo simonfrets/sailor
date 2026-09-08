@@ -26,7 +26,16 @@ import {
 } from "./task-schema.js";
 import type { Task } from "./task-schema.js";
 
-export const AGENT_CONTEXT_VERSION = 1;
+/**
+ * Bumped to 2 when the agent's display name and summary joined the context.
+ *
+ * A context is machine-local scratch under the ignored `state/` tree, derived
+ * entirely from tracked things, and rewritten by the run that needs it, so
+ * refusing one written by an earlier sailor costs a rebuild rather than any
+ * recorded fact - which is why this is a version rather than two defaulted
+ * fields that would leave a prompt silently saying nothing about the role.
+ */
+export const AGENT_CONTEXT_VERSION = 2;
 
 /** The one file a context directory is required to hold. */
 export const AGENT_CONTEXT_FILE = "context.json";
@@ -58,6 +67,10 @@ export const agentContextSchema = z.strictObject({
   version: z.literal(AGENT_CONTEXT_VERSION),
   runId: runIdSchema,
   agentId: agentIdSchema,
+  /** The definition's own name for the agent. `qa` displays as `QA`. */
+  displayName: z.string().min(1),
+  /** What this agent is for, in the definition's words. */
+  summary: z.string().min(1),
   taskId: taskIdSchema,
   taskTitle: z.string().min(1),
   /** The revision this context was built from. */
@@ -160,6 +173,8 @@ export const buildAgentContext = (
     version: AGENT_CONTEXT_VERSION,
     runId: input.task.runId,
     agentId: input.definition.id,
+    displayName: input.definition.displayName,
+    summary: input.definition.summary,
     taskId: input.task.id,
     taskTitle: input.task.title,
     taskRevision: input.task.revision,

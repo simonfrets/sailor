@@ -340,7 +340,7 @@ describe("buildClaudePrompt", () => {
     const projectRoot = createTempDirectory("sailor-claude-prompt-");
     const { systemPrompt } = buildClaudePrompt(invocationFor(projectRoot));
 
-    expect(systemPrompt).toContain("You are the `coder` agent");
+    expect(systemPrompt).toContain("You are Coder, the `coder` agent");
     expect(systemPrompt).toContain("# Agent policy: coder");
     expect(systemPrompt).toContain("Rule set revision 3.");
     expect(systemPrompt).toContain("`src/**`, `tests/**`");
@@ -356,10 +356,23 @@ describe("buildClaudePrompt", () => {
       invocationFor(projectRoot, architect)
     );
 
-    expect(systemPrompt).toContain("You are the `architect` agent");
+    expect(systemPrompt).toContain("You are Architect, the `architect` agent");
     expect(systemPrompt).toContain("Edit project files: no.");
     expect(systemPrompt).toContain("Run commands: no.");
     expect(systemPrompt).not.toContain("npm run");
+  });
+
+  it("says what the agent is for, in its definition's own words", () => {
+    // Without this the prompt names the id and nothing else, so an agent is
+    // told which policy it runs under and never what the stage is for.
+    const projectRoot = createTempDirectory("sailor-claude-prompt-");
+
+    expect(
+      buildClaudePrompt(invocationFor(projectRoot)).systemPrompt
+    ).toContain("Implements the specification");
+    expect(
+      buildClaudePrompt(invocationFor(projectRoot, architect)).systemPrompt
+    ).toContain("Reviews the structure");
   });
 
   it("puts the task, the stage, the attempt and the handoff in the prompt", () => {

@@ -56,6 +56,17 @@ export interface AgentInvocation {
   readonly projectRoot: string;
   /** The agent this run is of: the task's owner, which the builder has checked is one. */
   readonly agentId: AgentId;
+  /**
+   * What the agent is called and what it is for, as its definition says.
+   *
+   * They travel with the invocation because a prompt built from the id alone
+   * tells an agent which policy it runs under and nothing about the stage it
+   * is running; the context carries them for the same reason it carries the
+   * policy, so the adapter never goes and reads a definition that may have
+   * been edited since the handoff.
+   */
+  readonly displayName: string;
+  readonly summary: string;
   /** The agent's context directory, relative to the project root. */
   readonly contextPath: string;
   /** Frozen. A view of the task as it stood when the run began. */
@@ -187,6 +198,8 @@ export const buildAgentInvocation = (
   return Object.freeze({
     projectRoot: input.projectRoot,
     agentId: task.agentId,
+    displayName: context.displayName,
+    summary: context.summary,
     contextPath,
     task: deepFreeze(structuredClone(task)),
     attempt: context.attempt,

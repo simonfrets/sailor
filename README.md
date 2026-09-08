@@ -592,11 +592,18 @@ Each handoff writes the next agent a context of its own at
 .sailor/state/runs/<run-id>/agents/<agent-id>/context.json
 ```
 
-carrying that agent's own tool policy and write scopes, the compiled policy for
-the rule set in force, the rule-set hash, and what the previous agent left
-behind. There is no shared, mutable context object: the run and the agent are
-both in the path, each read parses the file again, and what comes back is
-frozen.
+carrying that agent's own tool policy and write scopes, its display name and
+the summary of what it is for, the compiled policy for the rule set in force,
+the rule-set hash, and what the previous agent left behind. There is no shared,
+mutable context object: the run and the agent are both in the path, each read
+parses the file again, and what comes back is frozen.
+
+The name and summary are the definition's own words, and they travel here
+rather than being looked up when a prompt is built: a definition edited after
+the handoff describes the next run, not this one. A context written by an
+earlier sailor, which carries neither, is refused by its version rather than
+read with the fields missing - a context is machine-local scratch derived
+entirely from tracked things, so refusing one costs a rebuild and nothing else.
 
 Writing that context and recording the transition that points at it are two
 calls, `writeAgentContext` and `transitionTask`, and the sailor does not
@@ -701,9 +708,10 @@ interface ProviderAdapter {
 ```
 
 `AgentInvocation` is what the adapter is handed: the absolute project root,
-the project-relative context path, a snapshot of the task, the attempt and what
-the previous agent left behind, the compiled policy, the logical model profile,
-the tool policy, a timeout and an abort signal. It is built by
+the agent's id, display name and summary, the project-relative context path, a
+snapshot of the task, the attempt and what the previous agent left behind, the
+compiled policy, the logical model profile, the tool policy, a timeout and an
+abort signal. It is built by
 `buildAgentInvocation` from the task and the context the handoff wrote, and
 from nothing else: the capabilities, scopes and scripts are the context's, so
 the adapter and the working-tree audit read one policy. What comes back is
