@@ -15,10 +15,10 @@ const GITIGNORE_TEMPLATE_NAME = "gitignore";
 /**
  * Templates the project owns once they exist.
  *
- * These two files carry the only decisions discovery cannot make, so they are
- * written to be edited. Reconciling them against the shipped copy would mean
- * that editing one is what stops the next `sailor init` from running, which
- * makes the sailor refuse to work because it was configured.
+ * These files carry the decisions discovery cannot make, so they are written
+ * to be edited. Reconciling them against the shipped copy would mean that
+ * editing one is what stops the next `sailor init` from running, which makes
+ * the sailor refuse to work because it was configured.
  *
  * The list is explicit rather than a `config/` prefix so that adding a template
  * is a decision about ownership rather than an accident of where it was filed.
@@ -27,8 +27,10 @@ const GITIGNORE_TEMPLATE_NAME = "gitignore";
  */
 export const SEEDED_TEMPLATE_PATHS = [
   "config/hooks.yaml",
+  "config/models.yaml",
   "config/notifications.yaml",
   "config/project.yaml",
+  "config/providers.yaml",
 ] as const;
 
 export interface SailorTemplateFile {

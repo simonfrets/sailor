@@ -1,0 +1,24 @@
+# Which model each logical profile runs on, per provider.
+#
+# This file belongs to the project: it is written once by `sailor init` and
+# never reconciled, so edit it freely.
+#
+# An agent definition names a logical profile - coding-high, reasoning-high
+# or verification - and never a model id, so a definition stays portable
+# across providers. This is where a profile becomes something a provider's
+# `--model` will accept.
+#
+# A profile left out here runs on the model its adapter defaults to, so
+# deleting a line falls back rather than breaking. The values below are those
+# defaults, written out so they can be seen and changed.
+#
+# The sailor does not check that a model exists: `claude --model` takes
+# aliases (opus, sonnet, haiku) and full names alike and refuses neither
+# until the request is made.
+version: 1
+
+models:
+  claude:
+    coding-high: opus
+    reasoning-high: opus
+    verification: sonnet

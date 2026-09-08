@@ -65,6 +65,31 @@ export {
 } from "./config/project-config.js";
 export type { ProjectConfig } from "./config/project-config.js";
 export {
+  loadModelsConfig,
+  modelsConfigSchema,
+  modelsForProvider,
+  providerModelsSchema,
+  readInstalledModelsConfig,
+} from "./config/models-config.js";
+export type { ModelsConfig, ProviderModels } from "./config/models-config.js";
+export {
+  DEFAULT_PROVIDER_COMMANDS,
+  claudeProviderConfigSchema,
+  codexProviderConfigSchema,
+  loadProvidersConfig,
+  providerCommand,
+  providerCommandSchema,
+  providerForAgent,
+  providersConfigSchema,
+  readInstalledProvidersConfig,
+} from "./config/providers-config.js";
+export type {
+  ClaudeProviderConfig,
+  CodexProviderConfig,
+  ProviderCommand,
+  ProvidersConfig,
+} from "./config/providers-config.js";
+export {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_FAILURE_POLICIES,
   loadNotificationsConfig,
@@ -269,6 +294,7 @@ export type {
   OutputStream,
 } from "./providers/agent-event.js";
 export {
+  PROVIDER_CLI_VERSIONS,
   PROVIDER_IDS,
   ProviderProtocolError,
   buildAgentInvocation,
@@ -310,6 +336,8 @@ export type {
   ClaudePrompt,
   ClaudeRunFiles,
 } from "./providers/claude/claude-cli-adapter.js";
+export { claudeAdapterOptions } from "./providers/claude/claude-config.js";
+export type { ClaudeAdapterOptionsInput } from "./providers/claude/claude-config.js";
 export {
   createLineSplitter,
   readClaudeStreamLine,

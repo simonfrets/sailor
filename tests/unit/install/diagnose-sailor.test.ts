@@ -13,6 +13,7 @@ import type {
   Diagnostic,
   SailorDiagnosis,
 } from "../../../src/install/diagnose-sailor.js";
+import { PROVIDER_CLI_VERSIONS } from "../../../src/providers/provider-adapter.js";
 import { buildSailorProject } from "../../helpers/sailor-project.js";
 import {
   createFakeCommandRunner,
@@ -20,6 +21,7 @@ import {
   spawnFailed,
 } from "../../helpers/fake-command-runner.js";
 import type { PlannedCommandResult } from "../../helpers/fake-command-runner.js";
+import type { CommandRequest } from "../../../src/processes/command-runner.js";
 import {
   projectScriptCheckYaml,
   ruleBundleYaml,
@@ -31,6 +33,9 @@ afterEach(() => {
 });
 
 const SAILOR_VERSION = "0.1.0";
+
+/** What the CLI the adapter was written against prints for `--version`. */
+const CLAUDE_VERSION = `${String(PROVIDER_CLI_VERSIONS.claude)} (Claude Code)`;
 
 const HOOKS_YAML = [
   "version: 1",
@@ -120,6 +125,8 @@ const diagnose = async (
     readonly sailorVersion?: string;
     readonly hooksPath?: string;
     readonly tools?: Readonly<Record<string, PlannedCommandResult>>;
+    /** Filled with every command the diagnosis actually ran. */
+    readonly ran?: CommandRequest[];
   } = {}
 ): Promise<SailorDiagnosis> =>
   diagnoseSailor({
@@ -129,6 +136,8 @@ const diagnose = async (
     runner: createFakeCommandRunner((request) => {
       const { executable, args } = request.command;
 
+      options.ran?.push(request);
+
       if (executable === "git" && args[0] === "config") {
         return options.hooksPath === undefined
           ? exited(1)
@@ -137,7 +146,9 @@ const diagnose = async (
 
       return (
         options.tools?.[executable] ??
-        exited(0, { stdout: `${executable} 1.2.3\n` })
+        (executable === "claude"
+          ? exited(0, { stdout: `${CLAUDE_VERSION}\n` })
+          : exited(0, { stdout: `${executable} 1.2.3\n` }))
       );
     }).run,
   });
@@ -218,6 +229,7 @@ describe("diagnoseSailor on a healthy installation", () => {
       "installation",
       "config",
       "notifications",
+      "provider",
       "rules",
       "scripts",
       "runtime",
@@ -295,6 +307,177 @@ describe("diagnoseSailor on a healthy installation", () => {
     for (const tool of REQUIRED_TOOLS) {
       expect(tool.args).toEqual(["--version"]);
     }
+  });
+});
+
+describe("diagnoseSailor on the configured provider", () => {
+  it("names the CLI and the version it reports", async () => {
+    const diagnosis = await diagnose(healthyRoot());
+    const entry = find(diagnosis, "provider");
+
+    expect(entry.status).toBe("ok");
+    expect(entry.detail).toContain("claude");
+    expect(entry.detail).toContain(CLAUDE_VERSION);
+  });
+
+  it("warns about a version other than the one the adapter was read from", async () => {
+    // A warning and not a failure: the flags are what matter, the adapter was
+    // written against one `--help`, and only a live run proves they are still
+    // there. Nothing here can make that claim.
+    const diagnosis = await diagnose(healthyRoot(), {
+      tools: { claude: exited(0, { stdout: "2.4.0 (Claude Code)\n" }) },
+    });
+    const entry = find(diagnosis, "provider");
+
+    expect(entry.status).toBe("warning");
+    expect(entry.detail).toContain("2.4.0");
+    expect(entry.detail).toContain(String(PROVIDER_CLI_VERSIONS.claude));
+    expect(diagnosis.healthy).toBe(true);
+  });
+
+  it("accepts a version with a suffix the adapter never reads", async () => {
+    const diagnosis = await diagnose(healthyRoot(), {
+      tools: {
+        claude: exited(0, { stdout: `${CLAUDE_VERSION} extra words\n` }),
+      },
+    });
+
+    expect(find(diagnosis, "provider").status).toBe("ok");
+  });
+
+  it("reports a provider CLI that is not on PATH", async () => {
+    // Nothing can invoke an agent on a provider whose command is not there,
+    // and the project asked for that provider by name.
+    const diagnosis = await diagnose(healthyRoot(), {
+      tools: { claude: spawnFailed("ENOENT") },
+    });
+    const entry = find(diagnosis, "provider");
+
+    expect(entry.status).toBe("problem");
+    expect(entry.detail).toContain("claude --version");
+    expect(entry.detail).toContain("could not be started");
+    expect(diagnosis.healthy).toBe(false);
+  });
+
+  it("reports a provider CLI that failed rather than treating it as present", async () => {
+    const diagnosis = await diagnose(healthyRoot(), {
+      tools: { claude: exited(127) },
+    });
+
+    expect(find(diagnosis, "provider").status).toBe("problem");
+    expect(find(diagnosis, "provider").detail).toContain(
+      "exited with code 127"
+    );
+  });
+
+  it("runs the command the project configured, not the default one", async () => {
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml":
+          "version: 1\nclaude:\n  command: [my-claude, --wrapped]\n",
+      },
+    });
+    const ran: CommandRequest[] = [];
+    const diagnosis = await diagnose(root, {
+      // Only the configured executable is given a version to report, so a
+      // check that had run `claude` would have reported that one instead.
+      tools: { "my-claude": exited(0, { stdout: `${CLAUDE_VERSION}\n` }) },
+      ran,
+    });
+    const entry = find(diagnosis, "provider");
+
+    expect(entry.status).toBe("ok");
+    expect(entry.detail).toContain("my-claude --wrapped --version");
+    // What was spawned, and not merely what the message says was spawned.
+    expect(
+      ran
+        .filter((request) => request.command.executable === "my-claude")
+        .map((request) => request.command.args)
+    ).toEqual([["--wrapped", "--version"]]);
+  });
+
+  it("reports a provider this sailor has no adapter for, before running anything", async () => {
+    // `codex` is admitted by the contract and has no adapter, so a project
+    // that pointed its agents at it can run none of them. Probing the CLI
+    // first would have made installing `codex` look like the fix, when what
+    // is missing is in this package rather than on the machine.
+    const ran: CommandRequest[] = [];
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml": "version: 1\ndefault: codex\n",
+      },
+    });
+    const entry = find(await diagnose(root, { ran }), "provider");
+
+    expect(entry.status).toBe("problem");
+    expect(entry.detail).toContain("no adapter for codex");
+    expect(
+      ran.filter((request) => request.command.executable === "codex")
+    ).toEqual([]);
+  });
+
+  it("checks the provider a per-agent override names, not only the default", async () => {
+    // An override breaks exactly the agent it names while the default one
+    // reports perfectly, so checking the default alone would call that
+    // installation healthy.
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml":
+          "version: 1\ndefault: claude\nagents:\n  qa: codex\n",
+      },
+    });
+    const entry = find(await diagnose(root), "provider");
+
+    expect(entry.status).toBe("problem");
+    expect(entry.detail).toContain("claude 2.1.263");
+    expect(entry.detail).toContain("no adapter for codex");
+  });
+
+  it("names a provider once however many agents are routed to it", async () => {
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml": [
+          "version: 1",
+          "default: claude",
+          "agents:",
+          "  qa: claude",
+          "  coder: codex",
+          "  cleaner: codex",
+          "",
+        ].join("\n"),
+      },
+    });
+    const entry = find(await diagnose(root), "provider");
+
+    expect(entry.detail.split("\n")).toHaveLength(2);
+  });
+
+  it("cannot check the provider while its configuration is unreadable", async () => {
+    const root = buildInstalled({
+      files: {
+        ".sailor/config/providers.yaml": "version: 1\ndefault: anthropic\n",
+      },
+    });
+    const diagnosis = await diagnose(root);
+
+    expect(find(diagnosis, "config").status).toBe("problem");
+    expect(find(diagnosis, "config").detail).toContain("config/providers.yaml");
+    expect(find(diagnosis, "provider").status).toBe("warning");
+    expect(find(diagnosis, "provider").detail).toContain("unreadable");
+  });
+
+  it("reports a models file that asks for something it cannot mean", async () => {
+    const diagnosis = await diagnose(
+      buildInstalled({
+        files: {
+          ".sailor/config/models.yaml":
+            "version: 1\nmodels:\n  claude:\n    coding: opus\n",
+        },
+      })
+    );
+
+    expect(find(diagnosis, "config").status).toBe("problem");
+    expect(find(diagnosis, "config").detail).toContain("config/models.yaml");
   });
 });
 

@@ -1,0 +1,33 @@
+# Which provider CLI runs an agent, and how that CLI is started.
+#
+# This file belongs to the project: it is written once by `sailor init` and
+# never reconciled, so edit it freely.
+#
+# The provider is not part of an agent definition, because a definition is
+# meant to be portable across providers. It is decided here instead.
+#
+# Only the Claude adapter is implemented. `codex` is named because the
+# adapter contract admits it, but nothing can run on it yet: the CLI was not
+# installed where the adapter would have been written, and its flags are not
+# guessed. `sailor doctor` says so.
+version: 1
+
+# The provider every agent runs on unless `agents` names another.
+default: claude
+
+# Per-agent overrides, by agent id: `qa: codex`.
+agents: {}
+
+# Each command is an argument vector, never a shell string; the first word is
+# the executable, looked up on PATH.
+claude:
+  command: [claude]
+
+  # Passed to the CLI as `--max-budget-usd`. null is no cap. A cap that stops
+  # a run half way through leaves the tree the agent was in the middle of
+  # changing, so what a run is worth is left to the project; a two-file task
+  # on `opus` measured about USD 0.40.
+  maxBudgetUsd: null
+
+codex:
+  command: [codex]
