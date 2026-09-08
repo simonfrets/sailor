@@ -2,6 +2,7 @@ import { agentIdSchema } from "../agents/agent-id.js";
 import type { AgentId } from "../agents/agent-id.js";
 import { PHASES } from "../rules/rule-schema.js";
 import type { Phase } from "../rules/rule-schema.js";
+import { taskIdSchema } from "../tasks/task-schema.js";
 
 /**
  * Every command the CLI dispatches. `rules` takes a subcommand, so the command
@@ -14,6 +15,7 @@ export const CLI_COMMANDS = [
   "init",
   "rules explain",
   "rules validate",
+  "run",
 ] as const;
 
 export type CliCommand = (typeof CLI_COMMANDS)[number];
@@ -25,6 +27,8 @@ export interface CliInvocation {
   /** Restricts a policy or a gate to one agent. Null means every agent. */
   readonly agentId: AgentId | null;
   readonly update: boolean;
+  /** The task to drive. Only `run` sets it. */
+  readonly taskId: string | null;
 }
 
 export type CliParseResult =
@@ -125,7 +129,8 @@ export const parseCliArguments = (argv: readonly string[]): CliParseResult => {
     name: CliCommand,
     consumedPositionals: number,
     allowed: AllowedOptions,
-    phase: Phase | null
+    phase: Phase | null,
+    taskId: string | null = null
   ): CliParseResult => {
     if (update && !allowed.update) {
       return usageError(`\`${name}\` does not accept \`--update\``);
@@ -143,7 +148,7 @@ export const parseCliArguments = (argv: readonly string[]): CliParseResult => {
 
     return {
       kind: "invocation",
-      invocation: { command: name, phase, agentId: agent, update },
+      invocation: { command: name, phase, agentId: agent, update, taskId },
     };
   };
 
@@ -194,6 +199,25 @@ export const parseCliArguments = (argv: readonly string[]): CliParseResult => {
       }
 
       return build("gate", 2, { agent: true, update: false }, phase);
+    }
+    case "run": {
+      const taskId = positionals[1];
+
+      if (taskId === undefined) {
+        return usageError("`run` requires a task id, for example `add-login`");
+      }
+
+      const parsedTaskId = taskIdSchema.safeParse(taskId);
+
+      if (!parsedTaskId.success) {
+        return usageError(
+          `invalid task id \`${taskId}\`: ${parsedTaskId.error.issues
+            .map((issue) => issue.message)
+            .join("; ")}`
+        );
+      }
+
+      return build("run", 2, { agent: false, update: false }, null, taskId);
     }
     default:
       return usageError(

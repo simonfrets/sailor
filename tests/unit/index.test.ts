@@ -175,6 +175,7 @@ const PUBLIC_API = [
   "findTask",
   "finishedEventOf",
   "formatDiagnosis",
+  "formatDriveResult",
   "formatInstallResult",
   "formatPhaseGateReport",
   "formatRuleIssue",

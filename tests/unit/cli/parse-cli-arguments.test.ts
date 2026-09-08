@@ -38,11 +38,18 @@ describe("parseCliArguments", () => {
         phase: null,
         agentId: null,
         update: false,
+        taskId: null,
       },
     });
     expect(parse("init", "--update")).toEqual({
       kind: "invocation",
-      invocation: { command: "init", phase: null, agentId: null, update: true },
+      invocation: {
+        command: "init",
+        phase: null,
+        agentId: null,
+        update: true,
+        taskId: null,
+      },
     });
   });
 
@@ -54,6 +61,7 @@ describe("parseCliArguments", () => {
         phase: null,
         agentId: null,
         update: false,
+        taskId: null,
       },
     });
   });
@@ -66,6 +74,7 @@ describe("parseCliArguments", () => {
         phase: null,
         agentId: null,
         update: false,
+        taskId: null,
       },
     });
     expect(parse("rules", "explain", "--agent", "coder")).toEqual({
@@ -75,6 +84,7 @@ describe("parseCliArguments", () => {
         phase: null,
         agentId: "coder",
         update: false,
+        taskId: null,
       },
     });
   });
@@ -87,6 +97,7 @@ describe("parseCliArguments", () => {
         phase: "pre-push",
         agentId: null,
         update: false,
+        taskId: null,
       },
     });
     expect(parse("gate", "qa", "--agent", "qa")).toEqual({
@@ -96,8 +107,29 @@ describe("parseCliArguments", () => {
         phase: "qa",
         agentId: "qa",
         update: false,
+        taskId: null,
       },
     });
+  });
+
+  it("parses run with the task it names", () => {
+    expect(parse("run", "add-login")).toEqual({
+      kind: "invocation",
+      invocation: {
+        command: "run",
+        phase: null,
+        agentId: null,
+        update: false,
+        taskId: "add-login",
+      },
+    });
+  });
+
+  it("rejects a run with no task, or with one that is not a task id", () => {
+    // The id names a directory under `.sailor/state/runs/` by way of the run
+    // it belongs to, and it is what `tasks.yaml` is looked up by.
+    expect(usageMessage(parse("run"))).toContain("requires a task id");
+    expect(usageMessage(parse("run", "Add Login"))).toContain("kebab-case");
   });
 
   it("rejects an unknown command", () => {
@@ -150,6 +182,9 @@ describe("parseCliArguments", () => {
       "unexpected argument `now`"
     );
     expect(usageMessage(parse("rules", "validate", "now"))).toContain(
+      "unexpected argument `now`"
+    );
+    expect(usageMessage(parse("run", "add-login", "now"))).toContain(
       "unexpected argument `now`"
     );
   });

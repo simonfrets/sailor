@@ -87,6 +87,7 @@ sailor <command> [options]
 | `sailor gate <phase>`                | Run the checks that apply to a workflow phase |
 | `sailor init [--update]`             | Install or update `.sailor/` in this project  |
 | `sailor doctor`                      | Check that the installed sailor can run       |
+| `sailor run <task>`                  | Drive a task from `awaiting_approval` to `qa` |
 
 Rules are read from the project the command is run in. The working tree root
 is resolved with `git rev-parse --show-toplevel`, so a command works from any
@@ -105,6 +106,13 @@ them:
 | 3    | Invalid or missing sailor configuration       |
 | 4    | A required check failed and blocked the phase |
 | 5    | The action was unsafe and was not taken       |
+
+`sailor run` maps onto them rather than adding a code of its own: reaching
+`qa` is `0`, a `pre-handoff` gate blocking a handoff is the same `4` that
+`sailor gate` exits with for the same failing check, and every other way a run
+stops - the agent's process failed, its writes left its scopes, a tool ran
+without consulting the gate - is `5`, an action the sailor understood, would
+not take, and recorded the reason for.
 
 ## Installation
 

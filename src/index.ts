@@ -679,6 +679,7 @@ export type {
 } from "./cli/run-cli.js";
 export { createDefaultCliCommands } from "./cli/default-commands.js";
 export { formatDiagnosis } from "./cli/format-diagnosis.js";
+export { formatDriveResult } from "./cli/format-drive-result.js";
 export { formatInstallResult } from "./cli/format-install-result.js";
 export { formatPhaseGateReport } from "./cli/format-gate-report.js";
 export {

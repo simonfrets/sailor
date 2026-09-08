@@ -122,6 +122,7 @@ const run = async (
     commands: createDefaultCliCommands(),
     cwd: root,
     now: () => new Date("2026-08-26T00:00:00.000Z"),
+    nodeExecutable: process.execPath,
     nodeVersion: "22.22.1",
     packageRootDirectory: packageRoot,
     runner: runner.run,

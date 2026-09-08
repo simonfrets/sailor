@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 import { SailorError } from "../../../src/sailor/sailor-error.js";
 import { loadSailorRuleSet } from "../../../src/sailor/load-sailor-rule-set.js";
@@ -12,16 +12,11 @@ import type {
   CommandSpec,
 } from "../../../src/processes/command-runner.js";
 import { CLAUDE_TOOL_GATE_SOURCE } from "../../../src/providers/claude/tool-gate.js";
-import {
-  listSailorTemplateFiles,
-  readSailorTemplateFile,
-} from "../../../src/install/sailor-templates.js";
 import { readAgentContext } from "../../../src/tasks/agent-context.js";
 import { agentContextDirectory } from "../../../src/tasks/context-path.js";
 import { readTaskFile, requireTask } from "../../../src/tasks/task-file.js";
 import { readRunReport } from "../../../src/tasks/run-report.js";
 import {
-  approveSpecification,
   createTask,
   transitionTask,
 } from "../../../src/tasks/transition-task.js";
@@ -31,12 +26,19 @@ import type {
   DriveTaskOptions,
   DriveTaskResult,
 } from "../../../src/runtime/drive-task.js";
-import { captureRejection } from "../../helpers/expect-error.js";
-import { cleanEnvironment, initRepository, runGit } from "../../helpers/git.js";
 import {
-  createTempDirectory,
-  removeTempDirectories,
-} from "../../helpers/temp-directory.js";
+  DRIVEN_AT,
+  DRIVEN_RUN_ID,
+  DRIVEN_TASK_ID,
+  approveDrivenTask,
+  buildDrivenProject,
+  readContextStep,
+  writeFileStep,
+  writeProjectFile,
+} from "../../helpers/driven-project.js";
+import { captureRejection } from "../../helpers/expect-error.js";
+import { cleanEnvironment } from "../../helpers/git.js";
+import { removeTempDirectories } from "../../helpers/temp-directory.js";
 
 afterEach(() => {
   removeTempDirectories();
@@ -55,149 +57,15 @@ const runner: CommandRunner = createNodeCommandRunner({
   baseEnv: cleanEnvironment(),
 });
 
-const TASK_ID = "add-greeting";
-const RUN_ID = "run-1";
-const RULE_SET_AT = new Date("2026-09-08T09:00:00.000Z");
+const TASK_ID = DRIVEN_TASK_ID;
+const RUN_ID = DRIVEN_RUN_ID;
+const RULE_SET_AT = DRIVEN_AT;
 
-/** A rule whose one check is a `command`, so the gate needs no project script. */
-const gateRule = (argv: readonly string[]): string =>
-  `version: 1
-id: driver-fixture
-description: What the fixture's handoffs are gated on
-rules:
-  - id: fixture.handoff
-    description: The handoff gate this fixture runs
-    severity: error
-    appliesTo: [specifier, coder, cleaner, architect, hardener, qa]
-    instruction: Leave the tree in a state the handoff check accepts.
-    checks:
-      - id: fixture-handoff-check
-        runner: command
-        argv: ${JSON.stringify(argv)}
-        phases: [pre-handoff]
-        required: true
-        timeoutMs: 60000
-`;
-
-const write = (root: string, path: string, contents: string): void => {
-  const absolute = join(root, path);
-
-  mkdirSync(dirname(absolute), { recursive: true });
-  writeFileSync(absolute, contents);
-};
-
-interface ProjectFixture {
-  /** One scenario per agent, as `fake-claude.ts` reads it. */
-  readonly scenario: Record<string, unknown>;
-  /** The pre-handoff check's argv. Defaults to one that passes. */
-  readonly gateArgv?: readonly string[];
-}
-
-/**
- * A committed project with the six shipped agent definitions, one gated rule,
- * and `providers.yaml` pointing `claude` at the fake executable.
- *
- * The definitions are the ones the sailor ships rather than doubles written to
- * suit the assertion, so the write scopes the audit holds each agent to are
- * the real ones.
- */
-const buildProject = (fixture: ProjectFixture): string => {
-  const root = createTempDirectory("sailor-drive-");
-
-  initRepository(root);
-  write(root, ".sailor/.gitignore", "node_modules/\nstate/\n");
-  write(root, ".sailor/tasks.yaml", "version: 1\ntasks: []\n");
-  write(
-    root,
-    ".sailor/rules/base.yaml",
-    gateRule(
-      fixture.gateArgv ?? [process.execPath, "--eval", "process.exit(0)"]
-    )
-  );
-
-  for (const file of listSailorTemplateFiles(packageRoot)) {
-    if (/^agents\/[^/]+\.yaml$/.test(file.installedPath)) {
-      write(
-        root,
-        join(".sailor", file.installedPath),
-        readSailorTemplateFile(packageRoot, file.templatePath)
-      );
-    }
-  }
-
-  write(root, "scenario.json", `${JSON.stringify(fixture.scenario)}\n`);
-  write(
-    root,
-    ".sailor/config/models.yaml",
-    "version: 1\nmodels:\n  claude:\n    coding-high: sonnet\n"
-  );
-  write(
-    root,
-    ".sailor/config/providers.yaml",
-    `version: 1
-default: claude
-agents: {}
-claude:
-  command: ${JSON.stringify([
-    process.execPath,
-    "--disable-warning=ExperimentalWarning",
-    "--import",
-    join(packageRoot, "tests/helpers/register-typescript-sources.mjs"),
-    join(packageRoot, "tests/fixtures/fake-claude.ts"),
-    join(root, "scenario.json"),
-  ])}
-  maxBudgetUsd: null
-`
-  );
-  write(root, "package.json", '{"name":"host","private":true}\n');
-  runGit(root, ["add", "--all"]);
-  runGit(root, ["commit", "--quiet", "--message", "baseline"]);
-
-  return root;
-};
-
-/** Walks a fresh task to `awaiting_approval` and approves it, as a person would. */
-const approvedTask = async (root: string): Promise<void> => {
-  await updateTaskFile(root, (file) =>
-    createTask(file, {
-      id: TASK_ID,
-      title: "Add a greeting",
-      runId: RUN_ID,
-      at: RULE_SET_AT,
-    })
-  );
-
-  const { sha256: ruleSetSha256 } = loadSailorRuleSet({ projectRoot: root });
-
-  for (const to of ["specified", "awaiting_approval"] as const) {
-    await updateTaskFile(root, (file) =>
-      transitionTask(file, {
-        taskId: TASK_ID,
-        expectedRevision: requireTask(file, TASK_ID).revision,
-        to,
-        toAgent: to === "specified" ? "specifier" : null,
-        ruleSetSha256,
-        at: RULE_SET_AT,
-      })
-    );
-  }
-
-  await updateTaskFile(root, (file) =>
-    approveSpecification(file, {
-      taskId: TASK_ID,
-      expectedRevision: requireTask(file, TASK_ID).revision,
-      approvedBy: "a-reviewer",
-      acceptance: {
-        features: [
-          { path: "features/greeting.feature", sha256: "c".repeat(64) },
-        ],
-        procedure: { path: "docs/qa/greeting.yaml", sha256: "d".repeat(64) },
-      },
-      ruleSetSha256,
-      at: RULE_SET_AT,
-    })
-  );
-};
+const buildProject = buildDrivenProject;
+const approvedTask = approveDrivenTask;
+const write = writeProjectFile;
+const readStep = readContextStep;
+const writeStep = writeFileStep;
 
 /** Starts a TypeScript source in a fresh Node process, as `runNodeScript` does. */
 const nodeSource = (script: string): CommandSpec => ({
@@ -227,24 +95,6 @@ const drive = async (
     newRunId: () => "run-2",
     ...overrides,
   });
-
-const readStep = (id: string, agentId: string): Record<string, unknown> => ({
-  id,
-  tool: "Read",
-  input: {
-    file_path: `${agentContextDirectory(RUN_ID, agentId)}/context.json`,
-  },
-});
-
-const writeStep = (
-  id: string,
-  path: string,
-  content: string
-): Record<string, unknown> => ({
-  id,
-  tool: "Write",
-  input: { file_path: path, content },
-});
 
 /** Every agent from the coder on, each doing something inside its own scopes. */
 const wholePipeline = (): Record<string, unknown> => ({
