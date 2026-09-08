@@ -328,6 +328,28 @@ export const projectRelativeClaudePath = (
     canonicalPath(resolve(projectRoot, path))
   );
 
+/**
+ * Whether a directory a search names is somewhere inside the project.
+ *
+ * Broader than `projectRelativeClaudePath` by exactly one place: the project
+ * root itself. Re-expressing the root from the root gives the empty string,
+ * which `toProjectRelativePath` reports as outside - right for a write, since
+ * there is no file called "the project", and wrong for a search, whose most
+ * ordinary argument is the project root. A live run found this when the CLI
+ * globbed `*` there and the gate refused it.
+ */
+const searchLooksInsideProject = (
+  projectRoot: string,
+  path: string
+): boolean => {
+  const root = canonicalPath(resolve(projectRoot));
+
+  return (
+    canonicalPath(resolve(projectRoot, path)) === root ||
+    projectRelativeClaudePath(projectRoot, path) !== null
+  );
+};
+
 const located = (
   projectRoot: string,
   path: string,
@@ -380,7 +402,7 @@ export const toolActionOfClaudeToolUse = (
     const outside =
       typeof path === "string" &&
       path !== "" &&
-      projectRelativeClaudePath(projectRoot, path) === null
+      !searchLooksInsideProject(projectRoot, path)
         ? path
         : null;
 

@@ -34,6 +34,8 @@ export interface CliContext {
   readonly now: () => Date;
   /** The Node runtime executing the CLI, as `process.versions.node`. */
   readonly nodeVersion: string;
+  /** The Node binary running the CLI, as `process.execPath`. */
+  readonly nodeExecutable: string;
 }
 
 export type CliCommandHandler = (context: CliContext) => Promise<number>;
@@ -55,6 +57,7 @@ export interface RunCliOptions {
   readonly runner: CommandRunner;
   readonly now: () => Date;
   readonly nodeVersion: string;
+  readonly nodeExecutable: string;
   readonly commands: CliCommandRegistry;
 }
 
@@ -66,6 +69,7 @@ Commands:
   rules validate             Load and resolve every rule bundle
   rules explain [--agent id] Show the resolved rules, or one agent's policy
   gate <phase> [--agent id]  Run the checks that apply to a workflow phase
+  run <task>                 Drive a task from awaiting_approval to qa
 
 Phases:
   pre-agent, pre-handoff, pre-commit, pre-push, qa
@@ -138,6 +142,7 @@ export const runCli = async (options: RunCliOptions): Promise<number> => {
       runner: options.runner,
       now: options.now,
       nodeVersion: options.nodeVersion,
+      nodeExecutable: options.nodeExecutable,
     });
   } catch (error: unknown) {
     options.streams.stderr.write(`sailor: ${describeFailure(error)}\n`);

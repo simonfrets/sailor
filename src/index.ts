@@ -599,6 +599,7 @@ export {
   approveSpecification,
   createDefaultRunId,
   createTask,
+  runIdForTransition,
   transitionTask,
 } from "./tasks/transition-task.js";
 export type {
@@ -635,6 +636,31 @@ export type {
   ContextHandoff,
 } from "./tasks/agent-context.js";
 
+export {
+  installedAgentPath,
+  readInstalledAgentDefinition,
+} from "./runtime/installed-agents.js";
+export {
+  createProviderAdapter,
+  hasProviderAdapter,
+  requireProviderAdapters,
+} from "./runtime/provider-adapters.js";
+export type { CreateProviderAdapterOptions } from "./runtime/provider-adapters.js";
+export {
+  DEFAULT_AGENT_TIMEOUT_MS,
+  DRIVEN_STAGE_STATUSES,
+  DRIVE_DESTINATION,
+  HANDOFF_GATE_PHASE,
+  driveTask,
+} from "./runtime/drive-task.js";
+export type {
+  DriveOutcome,
+  DriveTaskOptions,
+  DriveTaskResult,
+  DrivenStage,
+  DrivenStageStatus,
+} from "./runtime/drive-task.js";
+
 export { CLI_COMMANDS, parseCliArguments } from "./cli/parse-cli-arguments.js";
 export type {
   CliCommand,
@@ -653,6 +679,7 @@ export type {
 } from "./cli/run-cli.js";
 export { createDefaultCliCommands } from "./cli/default-commands.js";
 export { formatDiagnosis } from "./cli/format-diagnosis.js";
+export { formatDriveResult } from "./cli/format-drive-result.js";
 export { formatInstallResult } from "./cli/format-install-result.js";
 export { formatPhaseGateReport } from "./cli/format-gate-report.js";
 export {

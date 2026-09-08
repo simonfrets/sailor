@@ -51,6 +51,7 @@ const invoke = async (
     commands: {},
     cwd: "/tmp/project",
     now: () => new Date("2026-08-26T00:00:00.000Z"),
+    nodeExecutable: "/usr/bin/node",
     nodeVersion: "22.22.1",
     packageRootDirectory: packageRoot(),
     runner: createFakeCommandRunner(exited(0)).run,
@@ -129,6 +130,7 @@ describe("runCli", () => {
       phase: "pre-commit",
       agentId: "qa",
       update: false,
+      taskId: null,
     });
     expect(seen[0]?.now()).toEqual(new Date("2026-08-26T00:00:00.000Z"));
   });

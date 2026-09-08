@@ -2,6 +2,7 @@ import { doctor } from "./commands/doctor.js";
 import { explainRules } from "./commands/explain-rules.js";
 import { initSailor } from "./commands/init.js";
 import { runGate } from "./commands/run-gate.js";
+import { runTask } from "./commands/run-task.js";
 import { validateRules } from "./commands/validate-rules.js";
 import type { CliCommandRegistry } from "./run-cli.js";
 
@@ -18,4 +19,5 @@ export const createDefaultCliCommands = (): CliCommandRegistry => ({
   init: initSailor,
   "rules explain": explainRules,
   "rules validate": validateRules,
+  run: runTask,
 });

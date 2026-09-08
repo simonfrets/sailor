@@ -159,12 +159,13 @@ const yesNo = (value: boolean): string => (value ? "yes" : "no");
 /**
  * What the agent is told.
  *
- * The system prompt carries the compiled policy and a plain statement of the
- * tool policy. The statement is not the enforcement - the gate is - but an
- * agent that knows the rule spends its turns on the work rather than on
- * refusals. The prompt carries the task, the stage, the attempt and the
- * handoff, and points at the context file for the rest, so the prompt says
- * nothing the context does not already record.
+ * The system prompt names the agent, says what its definition says the agent
+ * is for, and carries the compiled policy and a plain statement of the tool
+ * policy. The statement is not the enforcement - the gate is - but an agent
+ * that knows the rule spends its turns on the work rather than on refusals.
+ * The prompt carries the task, the stage, the attempt and the handoff, and
+ * points at the context file for the rest, so the prompt says nothing the
+ * context does not already record.
  */
 export const buildClaudePrompt = (
   invocation: AgentInvocation
@@ -177,7 +178,9 @@ export const buildClaudePrompt = (
   );
 
   const systemPrompt = [
-    `You are the ${code(agentId)} agent of a sailor that governs this repository.`,
+    `You are ${invocation.displayName}, the ${code(agentId)} agent of a sailor that governs this repository.`,
+    "",
+    invocation.summary.trim(),
     "",
     "The policy below is compiled from the project's rules. The sailor enforces it: every tool call is checked before it runs, and a call outside the policy is refused with the reason. A refused call did not happen; do not retry it or work around it.",
     "",

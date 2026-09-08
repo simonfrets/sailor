@@ -16,6 +16,7 @@ describe("runGate", () => {
           phase: null,
           agentId: null,
           update: false,
+          taskId: null,
         },
         cwd: "/tmp/project",
         streams: recorded.streams,
@@ -23,6 +24,7 @@ describe("runGate", () => {
         runner: createFakeCommandRunner(exited(0)).run,
         now: () => new Date("2026-08-26T00:00:00.000Z"),
         nodeVersion: "22.22.1",
+        nodeExecutable: "/usr/bin/node",
       })
     ).rejects.toThrow(/no phase/);
   });

@@ -24,7 +24,7 @@ implemented: a transition is recorded into `.sailor/tasks.yaml` through
 `updateTaskFile`, which holds an exclusive lock across the whole
 read-change-write, and a context is written per run and per agent. Pairing the
 two - writing the next agent's context and recording the transition that points
-at it - is the runtime's job, and there is no runtime.
+at it - is the runtime's job, and `driveTask` is that runtime.
 
 The contract a provider adapter implements exists, and an agent's tool policy
 is enforced around an invocation rather than described in its prompt. The
@@ -32,8 +32,12 @@ Claude adapter is implemented against the installed CLI: it runs
 `claude --print` under the agent's policy, decides every tool call through a
 hook before the call runs, and the working tree is audited afterwards. The
 Codex adapter is **not**: `codex` is not installed where this was built, and
-a guessed adapter would ship behind a passing suite. Nothing yet drives a
-task through its agents, so the workflow is still driven through the library.
+a guessed adapter would ship behind a passing suite.
+
+`driveTask` puts those together: it takes an approved task from
+`awaiting_approval` to `qa`, one agent at a time, writing each agent's
+context, running it through its provider, auditing what it did and gating
+every handoff. `sailor run <task>` is that from a terminal.
 
 ## Requirements
 
@@ -83,6 +87,7 @@ sailor <command> [options]
 | `sailor gate <phase>`                | Run the checks that apply to a workflow phase |
 | `sailor init [--update]`             | Install or update `.sailor/` in this project  |
 | `sailor doctor`                      | Check that the installed sailor can run       |
+| `sailor run <task>`                  | Drive a task from `awaiting_approval` to `qa` |
 
 Rules are read from the project the command is run in. The working tree root
 is resolved with `git rev-parse --show-toplevel`, so a command works from any
@@ -101,6 +106,13 @@ them:
 | 3    | Invalid or missing sailor configuration       |
 | 4    | A required check failed and blocked the phase |
 | 5    | The action was unsafe and was not taken       |
+
+`sailor run` maps onto them rather than adding a code of its own: reaching
+`qa` is `0`, a `pre-handoff` gate blocking a handoff is the same `4` that
+`sailor gate` exits with for the same failing check, and every other way a run
+stops - the agent's process failed, its writes left its scopes, a tool ran
+without consulting the gate - is `5`, an action the sailor understood, would
+not take, and recorded the reason for.
 
 ## Installation
 
@@ -592,38 +604,49 @@ Each handoff writes the next agent a context of its own at
 .sailor/state/runs/<run-id>/agents/<agent-id>/context.json
 ```
 
-carrying that agent's own tool policy and write scopes, the compiled policy for
-the rule set in force, the rule-set hash, and what the previous agent left
-behind. There is no shared, mutable context object: the run and the agent are
-both in the path, each read parses the file again, and what comes back is
-frozen.
+carrying that agent's own tool policy and write scopes, its display name and
+the summary of what it is for, the compiled policy for the rule set in force,
+the rule-set hash, and what the previous agent left behind. There is no shared,
+mutable context object: the run and the agent are both in the path, each read
+parses the file again, and what comes back is frozen.
+
+The name and summary are the definition's own words, and they travel here
+rather than being looked up when a prompt is built: a definition edited after
+the handoff describes the next run, not this one. A context written by an
+earlier sailor, which carries neither, is refused by its version rather than
+read with the fields missing - a context is machine-local scratch derived
+entirely from tracked things, so refusing one costs a rebuild and nothing else.
 
 Writing that context and recording the transition that points at it are two
 calls, `writeAgentContext` and `transitionTask`, and the sailor does not
 couple them: `contextPath` is optional on a transition and defaults to none,
 which is what a move into a stage no agent owns records. Ordering them belongs
-to whatever drives the workflow, and that is Milestone D. Today the only driver
-is the library's own test driver.
+to whatever drives the workflow. `driveTask` records first and writes second,
+both under one task lock; see [Driving a task](#driving-a-task).
 
 Context first and then the transition naming it works for every move that stays
-in the same run. It does **not** work for a retry out of `failed`, and a driver
-that assumes it will overwrite the attempt it is replacing. A retry starts a new
-run, and `transitionTask` mints that id inside the call, so a driver writing the
-context first has only the old run id to write it under - and a context path is
-a function of the run and the agent, so the file lands on top of the failed
-attempt's. The task then carries a `runId` and a `contextPath` that disagree,
-and nothing validates that pair.
+in the same run. A move that **discards** an attempt starts a new one, because
+a context path is a function of the run and the agent: writing the replacement
+under the run it replaces would put it on top of the record of what failed.
+Two moves discard, and `runIdForTransition` is the whole of the rule:
 
-A driver retrying a task must therefore mint the run id itself, pass it as
-`newRunId`, and write the context under that. `newRunId` exists for this and
-takes precedence over the default. Nothing enforces it, which is why it is
-written here: the guarantee that an attempt cannot overwrite the record of the
-one it replaces is the caller's to keep, not the library's to give.
+- a recovery out of `failed`, always - the attempt failed and the next one
+  replaces it, whichever stage it restarts at;
+- a recovery out of `blocked` that targets a stage **before** the one the task
+  stopped in, which is rework: QA sending a change back to the coder throws
+  away everything from that stage on.
 
-Resuming a `blocked` task keeps its run, because nothing was discarded - except
-that recovery may target any stage at or before the interrupted one, so sending
-a task back for rework does discard, and reuses the run it discarded under.
-Rework carries the same overwrite, without even a new run id to reach for.
+Everything else keeps the run. A blocked task resuming where it stopped
+discarded nothing, and `blocked -> failed` restarts nothing at all.
+
+The driver has to know which of those it is doing before it writes anything,
+so `runIdForTransition` is exported and is the same function `transitionTask`
+asks: the driver decides the id, writes the context under it, and passes it
+back as `newRunId`. It cannot get that pair wrong and be believed. A task's
+recorded `contextPath` is held by `taskSchema` to the path its own `runId` and
+`agentId` name, so a context written under the run a retry replaced is refused
+by the transition that would have recorded it, rather than found later by
+whatever tried to build an invocation from the task.
 
 Everything under `state/` is ignored, so a context is machine-local. That is
 deliberate, and it settles what the `contextPath` recorded in `tasks.yaml`
@@ -701,9 +724,10 @@ interface ProviderAdapter {
 ```
 
 `AgentInvocation` is what the adapter is handed: the absolute project root,
-the project-relative context path, a snapshot of the task, the attempt and what
-the previous agent left behind, the compiled policy, the logical model profile,
-the tool policy, a timeout and an abort signal. It is built by
+the agent's id, display name and summary, the project-relative context path, a
+snapshot of the task, the attempt and what the previous agent left behind, the
+compiled policy, the logical model profile, the tool policy, a timeout and an
+abort signal. It is built by
 `buildAgentInvocation` from the task and the context the handoff wrote, and
 from nothing else: the capabilities, scopes and scripts are the context's, so
 the adapter and the working-tree audit read one policy. What comes back is
@@ -714,11 +738,11 @@ for another task, run or agent, one built from a revision that is neither the
 one this handoff was decided at nor the one it produced - a handoff writes the
 context from the snapshot before the transition, so an earlier attempt left at
 the same path is what that rules out - and a task whose recorded `contextPath`
-is not the path its own `runId` and `agentId` name. The last check is the one
-a retry needs. `transitionTask` mints a new run for a retry,
-and a driver that wrote the context under the old run leaves a task whose run
-and context disagree; nothing validated that pair before, and an invocation
-cannot now be built from it. Every disagreement is listed at once.
+is not the path its own `runId` and `agentId` name. The last check is now the
+second guard on that pair rather than the only one - `taskSchema` refuses to
+record it - and it stays because a `Task` reaches this builder from a caller
+that may have assembled it rather than read it. Every disagreement is listed
+at once.
 
 An adapter reports `AgentEvent`s: `started` once, any number of `output`
 chunks and `tool-action`s - each action with the verdict `evaluateToolAction`
@@ -785,7 +809,10 @@ the path it names, made canonical on both sides - the CLI reports real paths,
 and a project root reached through a symbolic link is the same place - and
 re-expressed from the project root; a path that leaves the project is refused
 as `outside-project` before the policy is consulted. `Glob` and `Grep` are
-searches. A `Bash` command that is plainly words is the argument vector the
+searches, and the directory one names is held to the project the same way -
+except that the project root itself counts as inside it, which a write does
+not, because there is no file called "the project" and the root is the most
+ordinary place to search. A `Bash` command that is plainly words is the argument vector the
 policy decides; one that needs a shell - a pipe, a redirection, `$`, a glob -
 is recorded as `sh -c <command>`, which is what the tool runs and which no
 policy grants. A tool the gate does not know is refused loudly, because the
@@ -812,6 +839,62 @@ What the mechanism enforces is exactly as strong as the CLI's reporting of
 its own tool calls, and the audit covers writes whatever the CLI reported.
 `nodeCommandRunner` forwards `USER` for this adapter's sake: the CLI keeps
 its login in the macOS keychain and finds it by account name.
+
+## Driving a task
+
+`driveTask` is the thing that takes a task from `awaiting_approval` to `qa`,
+one agent at a time. Each stage is entered by a handoff, run by the agent that
+owns it, audited against that agent's own write policy, and put to the
+`pre-handoff` gates before the next handoff carries their report.
+
+It reads what to do next out of `tasks.yaml` every time, so a run stopped part
+way through is picked up by the next one - in another process, or on another
+machine, which rebuilds the context it finds named and does not have.
+
+One turn, in order:
+
+1. **Enter the stage.** `runIdForTransition` decides the run, the transition
+   into the stage is recorded with the previous gate's report and the context
+   path, and the agent's context is written under the run the task now
+   carries. Both happen under one task lock, and if the write fails the
+   transition is never recorded, so a task never names a context nobody wrote.
+2. **Run the agent.** The provider comes from `config/providers.yaml` through
+   `providerForAgent`, and the adapter from `claudeAdapterOptions`. The tree
+   is snapshotted, the agent runs through `recordAuditedAgentRun`, and the
+   tree is snapshotted again.
+3. **Decide what came back.** A run that finished cleanly inside its write
+   scopes is a handoff. Anything else stops the task, and the two states mean
+   different things:
+
+| What happened                                  | State     | Why                                                                         |
+| ---------------------------------------------- | --------- | --------------------------------------------------------------------------- |
+| the run `failed`, `timed-out` or was `aborted` | `failed`  | the attempt is over; the next one replaces it and starts its own run        |
+| the tree ended up outside the write scopes     | `failed`  | the run happened but is not a handoff, and the tree is not undone           |
+| a tool ran without consulting the gate         | `failed`  | `tool-gate-failed`; the sailor cannot vouch for the run                     |
+| the `pre-handoff` gates blocked                | `blocked` | the work is on disk and nameable; fixing it resumes the stage it stopped in |
+
+4. **Gate and hand off.** `pre-handoff` runs for the agent that is handing
+   off, the full report is persisted under the run, and its id and path are
+   recorded on the transition into the next stage.
+
+A `tool-gate-failed` refusal is thrown rather than finished, so
+`recordAuditedAgentRun` never reaches its own second snapshot. The driver
+therefore holds a snapshot of its own and audits against it, and the recorded
+failure says which files the refused run left behind - undoing them is not
+something the sailor does on its own.
+
+It starts only from `awaiting_approval` or a stage an agent owns. `draft` and
+`specified` are before an approval, which is a person's act; `completed` is
+over; and which stage a `blocked` or `failed` task recovers into is exactly
+the judgement stopping it was for. It ends at `qa` and never enters
+`completed`, because completion demands evidence about accepted files and
+gates over the whole rule set, which is `completeTask`'s to produce.
+
+A provider this sailor has no adapter for is refused **before anything is
+spawned**, and for every agent the run would reach rather than the one about
+to start: an installation that routes the hardener to `codex` would otherwise
+run the coder and the cleaner for real, and stop three stages in on a fact
+that was in the file all along.
 
 ## Tool policy enforcement
 
@@ -882,6 +965,4 @@ sailor does on its own.
 ## Planned modules
 
 - The Codex adapter behind the contract, written against its installed CLI
-- A runtime that drives a task through its agents, recording each audited
-  run on the task
-- Specifier, coder, cleaner, architect, hardener, and QA agents
+- A specifier stage in the driver, once approval has a command of its own

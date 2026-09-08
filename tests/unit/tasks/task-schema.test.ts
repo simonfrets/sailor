@@ -187,6 +187,50 @@ describe("taskSchema", () => {
       taskSchema.safeParse(buildTask({ state: "in_review" as "draft" })).success
     ).toBe(false);
   });
+
+  it("refuses a context path its own run and agent do not name", () => {
+    // The overwrite this exists to stop: a retry mints a new run, and a
+    // driver that wrote the next context before it knew the id has only the
+    // old run to write it under. The file then lands on top of the failed
+    // attempt's, and the task carries a `runId` and a `contextPath` that
+    // disagree. Neither the driver nor a hand-edited `tasks.yaml` can put
+    // that pair in the file.
+    const task = buildTask({ state: "implementing", agentId: "coder" });
+
+    for (const contextPath of [
+      ".sailor/state/runs/run-0/agents/coder",
+      ".sailor/state/runs/run-1/agents/cleaner",
+      ".sailor/state/runs/run-1/agents/coder/context.json",
+      "docs/context",
+    ]) {
+      const result = taskSchema.safeParse(buildTask({ ...task, contextPath }));
+
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toEqual(["contextPath"]);
+    }
+
+    expect(
+      taskSchema.safeParse(
+        buildTask({
+          ...task,
+          contextPath: ".sailor/state/runs/run-1/agents/coder",
+        })
+      ).success
+    ).toBe(true);
+  });
+
+  it("refuses a context path on a task no agent is running", () => {
+    // Nothing is holding it, so a path recorded here names a context whose
+    // agent the state does not admit.
+    expect(
+      taskSchema.safeParse(
+        buildTask({
+          state: "awaiting_approval",
+          contextPath: ".sailor/state/runs/run-1/agents/coder",
+        })
+      ).success
+    ).toBe(false);
+  });
 });
 
 describe("taskFileSchema", () => {

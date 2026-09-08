@@ -30,8 +30,24 @@ interface ToolStep {
 
 interface Scenario {
   readonly steps: readonly (TextStep | ToolStep)[];
+  /**
+   * Files written without a `tool_use` of any kind, as a CLI that changed the
+   * tree and reported nothing would. The gate never sees them and there is no
+   * decision missing for one, so only the working-tree audit can catch them.
+   */
+  readonly writes?: Readonly<Record<string, string>>;
   readonly exitCode?: number;
   readonly resultText?: string;
+}
+
+/**
+ * One file can hold a scenario per agent, because a driver starts the same
+ * command for every agent it runs and only the prompt tells them apart. The
+ * agent is read out of `--append-system-prompt`, which is where the adapter
+ * names it. A file with no `agents` map is one scenario, as it always was.
+ */
+interface ScenarioFile extends Partial<Scenario> {
+  readonly agents?: Readonly<Record<string, Scenario>>;
 }
 
 const REQUIRED_FLAGS = [
@@ -49,7 +65,9 @@ if (scenarioPath === undefined) {
   throw new Error("usage: fake-claude.ts <scenario.json> <claude arguments>");
 }
 
-const scenario = JSON.parse(readFileSync(scenarioPath, "utf8")) as Scenario;
+const scenarioFile = JSON.parse(
+  readFileSync(scenarioPath, "utf8")
+) as ScenarioFile;
 
 const valueOf = (flag: string): string => {
   const index = args.indexOf(flag);
@@ -82,6 +100,28 @@ const prompt = separator === -1 ? undefined : args[separator + 1];
 if (prompt === undefined || prompt === "") {
   throw new Error("fake claude: no prompt after --");
 }
+
+const scenarioFor = (): Scenario => {
+  if (scenarioFile.agents === undefined) {
+    return { ...scenarioFile, steps: scenarioFile.steps ?? [] };
+  }
+
+  const agentId = /the `([a-z][a-z0-9-]*)` agent/.exec(
+    valueOf("--append-system-prompt")
+  )?.[1];
+  const chosen =
+    agentId === undefined ? undefined : scenarioFile.agents[agentId];
+
+  if (chosen === undefined) {
+    throw new Error(
+      `fake claude: no scenario for the ${agentId ?? "unnamed"} agent`
+    );
+  }
+
+  return chosen;
+};
+
+const scenario = scenarioFor();
 
 const tools = valueOf("--tools").split(",");
 const settings = JSON.parse(valueOf("--settings")) as {
@@ -168,6 +208,13 @@ const perform = (step: ToolStep): void => {
     writeFileSync(path, typeof content === "string" ? content : "");
   }
 };
+
+for (const [path, content] of Object.entries(scenario.writes ?? {})) {
+  const absolute = resolve(process.cwd(), path);
+
+  mkdirSync(dirname(absolute), { recursive: true });
+  writeFileSync(absolute, content);
+}
 
 for (const step of scenario.steps) {
   if ("text" in step) {

@@ -213,6 +213,19 @@ describe("toolActionOfClaudeToolUse", () => {
     ).toEqual({ action: { kind: "search", query: "**/*.ts" }, outside: null });
   });
 
+  it("treats the project root itself as somewhere a search may look", () => {
+    // A live run found this: the CLI globs `*` with `path` set to the project
+    // root, which is the most ordinary argument a search has, and the gate
+    // refused it as outside the project. `toProjectRelativePath` answers
+    // `null` for the root because there is no file called "the project",
+    // which is right for a write and wrong for a directory to search.
+    for (const path of [PROJECT_ROOT, `${PROJECT_ROOT}/`, ".", "./"]) {
+      expect(
+        toolActionOfClaudeToolUse(PROJECT_ROOT, "Glob", { pattern: "*", path })
+      ).toEqual({ action: { kind: "search", query: "*" }, outside: null });
+    }
+  });
+
   it("maps a plain Bash command to its argument vector, and a shell command to the shell that would run it", () => {
     expect(
       toolActionOfClaudeToolUse(PROJECT_ROOT, "Bash", {

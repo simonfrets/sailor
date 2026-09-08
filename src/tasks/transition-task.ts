@@ -5,6 +5,7 @@ import { SailorError } from "../sailor/sailor-error.js";
 import { TASK_FILE_SOURCE, findTask, requireTask } from "./task-file.js";
 import {
   STATE_AGENTS,
+  WORKFLOW_STATES,
   completionEvidenceSchema,
   describeStateOwner,
   taskSchema,
@@ -21,12 +22,55 @@ import type {
 } from "./task-schema.js";
 import {
   allowedTransitions,
+  currentStage,
   isActiveState,
   isInterruptedState,
+  isWorkflowState,
 } from "./workflow.js";
 
 /** The run a retry starts under, when the caller supplies no id of its own. */
 export const createDefaultRunId = (): string => randomUUID();
+
+/**
+ * The run a transition happens under.
+ *
+ * A run id names the directory holding every agent context of an attempt, so
+ * reusing one for work that discards what the last attempt did writes the new
+ * context over the record of the old. Two moves discard:
+ *
+ * - a recovery out of `failed`, always: the attempt failed and the next one
+ *   replaces it, whichever stage it restarts at;
+ * - a recovery out of `blocked` that targets a stage *before* the one the task
+ *   stopped in, which is rework - QA sending a change back to the coder throws
+ *   away everything from that stage on.
+ *
+ * Everything else keeps the run. A blocked task resuming where it stopped
+ * discarded nothing, and `blocked -> failed` restarts nothing at all.
+ *
+ * It is exported because the caller has to know the answer *before* the call:
+ * a context path is a function of the run and the agent, so a driver writing
+ * the next agent's context needs the id the transition will use. One function
+ * answers both, and `taskSchema` refuses the pair if they ever disagree.
+ */
+export const runIdForTransition = (
+  task: Task,
+  to: TaskState,
+  newRunId: () => string = createDefaultRunId
+): string => {
+  if (!isWorkflowState(to)) {
+    return task.runId;
+  }
+
+  if (task.state === "failed") {
+    return newRunId();
+  }
+
+  const discards =
+    task.state === "blocked" &&
+    WORKFLOW_STATES.indexOf(to) < WORKFLOW_STATES.indexOf(currentStage(task));
+
+  return discards ? newRunId() : task.runId;
+};
 
 const replaceTask = (file: TaskFile, task: Task): TaskFile => ({
   ...file,
@@ -357,7 +401,11 @@ export interface TransitionRequest {
   readonly contextPath?: string | null;
   /** Required entering `completed`, refused entering anything else. */
   readonly completion?: CompletionEvidence | null;
-  /** Mints the run a retry starts under. Injected so tests stay deterministic. */
+  /**
+   * Mints the run a discarding recovery starts under, and is asked only when
+   * `runIdForTransition` says this move discards. Injected so a driver can
+   * decide the id before it writes the context, and pass the same one here.
+   */
   readonly newRunId?: () => string;
 }
 
@@ -445,14 +493,7 @@ export const transitionTask = (
   const at = request.at.toISOString();
   const revision = task.revision + 1;
   const contextPath = request.contextPath ?? null;
-  // A retry re-runs agents, and their contexts live under the run id. Reusing
-  // it would overwrite the record of the attempt that failed with the one
-  // being made to replace it. Resuming a blocked task keeps its run: nothing
-  // was discarded, so nothing is about to be written twice.
-  const runId =
-    task.state === "failed"
-      ? (request.newRunId ?? createDefaultRunId)()
-      : task.runId;
+  const runId = runIdForTransition(task, request.to, request.newRunId);
   // Re-specifying invalidates the approval: what was approved no longer exists.
   const clearsApproval = request.to === "draft" || request.to === "specified";
   // The stage an interruption stopped in. `blocked -> failed` keeps whatever

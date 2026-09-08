@@ -9,7 +9,11 @@ import { z } from "zod";
 import { writeFileAtomic } from "../sailor/atomic-write.js";
 import { deepFreeze } from "../sailor/deep-freeze.js";
 import { SailorError } from "../sailor/sailor-error.js";
-import { SAILOR_DIRECTORY, SAILOR_PATHS } from "../sailor/layout.js";
+import {
+  AGENT_CONTEXT_FILE,
+  agentContextDirectory,
+  agentContextFile,
+} from "./context-path.js";
 import {
   projectRelativeGlobSchema,
   projectRelativePathSchema,
@@ -26,10 +30,18 @@ import {
 } from "./task-schema.js";
 import type { Task } from "./task-schema.js";
 
-export const AGENT_CONTEXT_VERSION = 1;
+/**
+ * Bumped to 2 when the agent's display name and summary joined the context.
+ *
+ * A context is machine-local scratch under the ignored `state/` tree, derived
+ * entirely from tracked things, and rewritten by the run that needs it, so
+ * refusing one written by an earlier sailor costs a rebuild rather than any
+ * recorded fact - which is why this is a version rather than two defaulted
+ * fields that would leave a prompt silently saying nothing about the role.
+ */
+export const AGENT_CONTEXT_VERSION = 2;
 
-/** The one file a context directory is required to hold. */
-export const AGENT_CONTEXT_FILE = "context.json";
+export { AGENT_CONTEXT_FILE, agentContextDirectory, agentContextFile };
 
 const CONTEXT_MODE = 0o644;
 
@@ -58,6 +70,10 @@ export const agentContextSchema = z.strictObject({
   version: z.literal(AGENT_CONTEXT_VERSION),
   runId: runIdSchema,
   agentId: agentIdSchema,
+  /** The definition's own name for the agent. `qa` displays as `QA`. */
+  displayName: z.string().min(1),
+  /** What this agent is for, in the definition's words. */
+  summary: z.string().min(1),
   taskId: taskIdSchema,
   taskTitle: z.string().min(1),
   /** The revision this context was built from. */
@@ -76,32 +92,6 @@ export const agentContextSchema = z.strictObject({
 
 export type ContextHandoff = z.output<typeof contextHandoffSchema>;
 export type AgentContext = z.output<typeof agentContextSchema>;
-
-/**
- * Where one agent's context lives, relative to the project root.
- *
- * The run and the agent are both in the path, which is what makes a context
- * per agent per run rather than one the pipeline passes along and edits. Both
- * segments are validated identifiers, so neither can climb out of `state/` -
- * and a path arriving from anywhere else is checked before it is resolved.
- *
- * Being a function of the run id and the agent id - both of which `tasks.yaml`
- * carries, and `tasks.yaml` is committed - the path means the same thing on
- * every machine that checks the project out. The file at the end of it does
- * not: contexts live under the ignored `state/` tree, so a fresh checkout has
- * the name and not the file, and rebuilds what it needs there.
- */
-export const agentContextDirectory = (runId: string, agentId: string): string =>
-  posix.join(
-    SAILOR_DIRECTORY,
-    ...SAILOR_PATHS.runs.split(/[\\/]/),
-    runId,
-    "agents",
-    agentId
-  );
-
-export const agentContextFile = (runId: string, agentId: string): string =>
-  posix.join(agentContextDirectory(runId, agentId), AGENT_CONTEXT_FILE);
 
 /**
  * Resolves a recorded context path against a project, refusing to leave it.
@@ -160,6 +150,8 @@ export const buildAgentContext = (
     version: AGENT_CONTEXT_VERSION,
     runId: input.task.runId,
     agentId: input.definition.id,
+    displayName: input.definition.displayName,
+    summary: input.definition.summary,
     taskId: input.task.id,
     taskTitle: input.task.title,
     taskRevision: input.task.revision,
