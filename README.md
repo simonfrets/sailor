@@ -809,7 +809,10 @@ the path it names, made canonical on both sides - the CLI reports real paths,
 and a project root reached through a symbolic link is the same place - and
 re-expressed from the project root; a path that leaves the project is refused
 as `outside-project` before the policy is consulted. `Glob` and `Grep` are
-searches. A `Bash` command that is plainly words is the argument vector the
+searches, and the directory one names is held to the project the same way -
+except that the project root itself counts as inside it, which a write does
+not, because there is no file called "the project" and the root is the most
+ordinary place to search. A `Bash` command that is plainly words is the argument vector the
 policy decides; one that needs a shell - a pipe, a redirection, `$`, a glob -
 is recorded as `sh -c <command>`, which is what the tool runs and which no
 policy grants. A tool the gate does not know is refused loudly, because the
